@@ -1,0 +1,13 @@
+node_modules
+contracts
+circuits
+scripts
+mcp
+docs
+_reference
+tools
+.git
+deployments
+*.log
+**/target
+README.md

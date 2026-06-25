@@ -1,0 +1,103 @@
+// Record an automated screen-capture walkthrough of Segel (silent — the hackathon
+// allows a no-narration walkthrough). Grabs PNG frames at ~5fps while driving the
+// real desk in Chrome, then assembles them into an mp4 with ffmpeg.
+import { spawn, spawnSync } from "node:child_process";
+import { mkdirSync, rmSync, readdirSync } from "node:fs";
+import puppeteer from "puppeteer-core";
+
+const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+const FFMPEG = "C:\\Hackathons\\Hackathon Stellar Real World ZK\\tools\\bin\\ffmpeg.exe";
+const FRAMES = "C:\\Users\\pc\\AppData\\Local\\Temp\\claude\\C--Hackathons-Hackathon-Stellar-Real-World-ZK-V2\\1ab0f0ce-d218-4657-b701-0478a752fcef\\scratchpad\\frames";
+const OUT = "frontend/segel-demo.mp4";
+const PORT = 8131;
+const base = `http://localhost:${PORT}`;
+
+rmSync(FRAMES, { recursive: true, force: true });
+mkdirSync(FRAMES, { recursive: true });
+const srv = spawn(process.execPath, ["frontend/serve.mjs", String(PORT)], { stdio: "ignore" });
+await new Promise((r) => setTimeout(r, 800));
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const clickText = (page, sel, text) => page.evaluate((sel, text) => {
+  const el = [...document.querySelectorAll(sel)].find((e) => e.textContent.trim().includes(text));
+  if (el) { el.scrollIntoView({ block: "center" }); el.click(); return true; } return false;
+}, sel, text);
+const smoothScroll = async (page, to, steps = 28) => {
+  for (let i = 1; i <= steps; i++) { await page.evaluate((y) => window.scrollTo(0, y), (to * i) / steps); await wait(45); }
+};
+
+const browser = await puppeteer.launch({
+  executablePath: CHROME, headless: "new",
+  defaultViewport: { width: 1280, height: 800 }, args: ["--no-sandbox"],
+});
+const page = await browser.newPage();
+
+let n = 0, recording = true, t0 = 0;
+async function grab() {
+  t0 = Date.now();
+  while (recording) {
+    const s = Date.now();
+    try { await page.screenshot({ path: `${FRAMES}\\f${String(n).padStart(5, "0")}.png` }); n++; }
+    catch (_) {}
+    const dt = Date.now() - s;
+    await wait(Math.max(0, 110 - dt)); // aim ~8–9 fps
+  }
+}
+
+try {
+  await page.goto(base + "/", { waitUntil: "networkidle2", timeout: 45000 });
+  await wait(300);
+  const grabber = grab();
+
+  // LANDING tour
+  await wait(2200);
+  await smoothScroll(page, 720); await wait(1600);
+  await smoothScroll(page, 1500); await wait(2000);
+  await smoothScroll(page, 2350); await wait(2000);
+  await smoothScroll(page, 3200); await wait(1800);
+  await page.evaluate(() => window.scrollTo(0, 0)); await wait(900);
+
+  // DESK
+  await page.goto(base + "/app.html", { waitUntil: "networkidle2", timeout: 45000 });
+  await page.waitForFunction(() => !/loading live RFQs/.test(document.body.innerText), { timeout: 40000 }).catch(() => {});
+  await wait(2200);
+  await clickText(page, "button", "Connect wallet"); await wait(1200);
+  await clickText(page, "button", "Embedded key");
+  await page.waitForFunction(() => /USDC/.test(document.body.innerText), { timeout: 20000 }).catch(() => {});
+  await wait(2000);
+  await clickText(page, "[data-nav]", "Create RFQ"); await wait(2200);
+  await clickText(page, "[data-act='mode:0']", "Direct OTC").catch(() => {}); await wait(1400);
+  await clickText(page, "[data-act='mode:1']", "RFQ Auction").catch(() => {}); await wait(1400);
+  await clickText(page, "[data-nav]", "Docs"); await wait(2800);
+  await clickText(page, "[data-nav]", "Audit"); await wait(1600);
+  await clickText(page, "[data-act='poseidon']", "poseidon"); await wait(3000);
+  await clickText(page, "[data-nav]", "Active RFQs"); await wait(2000);
+  // bid on the NEWEST open RFQ (last "Bid" button) so the nullifier is fresh
+  const bid = await page.evaluate(() => {
+    const els = [...document.querySelectorAll("button.rowact")].filter((e) => e.textContent.trim() === "Bid");
+    const el = els[els.length - 1];
+    if (el) { el.scrollIntoView({ block: "center" }); el.click(); return true; } return false;
+  });
+  if (bid) {
+    await wait(2000);
+    await clickText(page, "[data-act='sealbid']", "seal bid");
+    await wait(6000); // proving spinner + result toast
+  }
+  await wait(1500);
+
+  recording = false; await grabber;
+} catch (e) {
+  recording = false; console.error("record warning:", e.message);
+} finally {
+  await browser.close();
+  srv.kill();
+}
+
+const elapsed = (Date.now() - t0) / 1000;
+const count = readdirSync(FRAMES).length;
+const fps = Math.max(2, Math.min(12, +(count / elapsed).toFixed(2)));
+console.log(`captured ${count} frames over ${elapsed.toFixed(1)}s -> ${fps} fps; encoding…`);
+const r = spawnSync(FFMPEG, ["-y", "-framerate", String(fps), "-i", `${FRAMES}\\f%05d.png`,
+  "-c:v", "libx264", "-pix_fmt", "yuv420p", "-vf", "scale=1280:-2", OUT], { stdio: "ignore" });
+console.log(r.status === 0 ? `✅ wrote ${OUT}` : "❌ ffmpeg failed: " + r.status);
+process.exit(r.status === 0 ? 0 : 1);

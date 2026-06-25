@@ -26,3 +26,7 @@ scratchpad/
 
 # platform binaries (download separately)
 tools/bin/
+
+.vercel
+
+.vercel/

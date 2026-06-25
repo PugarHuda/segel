@@ -37,12 +37,17 @@ verifies the proofs on-chain and custodies real testnet USDC.
   | [bidValidity verifier](https://stellar.expert/explorer/testnet/contract/CAL5XO2NPC2ZFVQSXX7HSS6ARQOX6GL24LCR5SZVEIKENOLN2HUOK7DK) | verifies sealed-bid validity | `verify` → [`true`](https://stellar.expert/explorer/testnet/tx/8994686dc5d787c63c3690db810aec2653dae9dbf7a3b6c5818fe151a5624862) |
   | [auctionResult verifier](https://stellar.expert/explorer/testnet/contract/CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJHOLGGJEBY) | verifies Vickrey settlement | `verify` → `true`; tampered → `InvalidProof` |
 
-- **🌐 Demo:** the desk (`/app.html`) reads live RFQs from the contract, builds
-  **bidValidity / auctionResult proofs in your browser** (snarkjs/WASM), and
-  submits real `commit_bid` / `settle` transactions. Works with **no install**
-  (an embedded throwaway testnet key signs) or **connect Freighter**.
+- **🌐 Live site:** **https://segel.vercel.app** — landing page; hit **Open the
+  desk** (or go to [`/app`](https://segel.vercel.app/app)). The desk reads live
+  RFQs from the contract, builds **bidValidity / auctionResult proofs in your
+  browser** (snarkjs/WASM), and submits real `commit_bid` / `settle` transactions.
+  Works with **no install** (an embedded throwaway testnet key signs) or **connect
+  Freighter**.
 - **Run locally:** `npm install && npm run circuit:all && npm run serve` → http://localhost:8000.
-- **Demo video:** _add link here_ (script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
+- **Demo video:** a ~1-min auto-captured silent walkthrough ships at
+  [`frontend/segel-demo.mp4`](frontend/segel-demo.mp4) (also live at
+  https://segel.vercel.app/segel-demo.mp4); regenerate with `node scripts/record-demo.mjs`.
+  Narrated 2–3 min script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
 
 ---
 
