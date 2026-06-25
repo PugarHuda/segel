@@ -10,6 +10,9 @@
     "circuit:all": "bash scripts/build-all-circuits.sh",
     "test:proving": "node scripts/test-fullprove.mjs",
     "test:negative": "node scripts/test-negative.mjs",
+    "test:browser": "node scripts/browser-test.mjs",
+    "test:browser-zk": "node scripts/browser-e2e.mjs",
+    "e2e": "node scripts/e2e-testnet.mjs",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {
