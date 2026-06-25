@@ -1,0 +1,16 @@
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#e4e9f6;font-family:'JetBrains Mono',monospace;color:#14151a}
+::selection{background:#7e93e6;color:#fff}
+input,select,button,textarea{font-family:'JetBrains Mono',monospace}
+.msi{font-family:'Material Symbols Outlined';font-weight:normal;font-style:normal;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased}
+@keyframes segelProve{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+@keyframes segelPop{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes segelToast{0%{transform:translateY(-12px);opacity:0}100%{transform:translateY(0);opacity:1}}
+input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:6px;background:#e6eafb;outline:none;width:100%}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,#7585e4,#b3a6dd);cursor:pointer;border:2px solid #fff;box-shadow:0 2px 6px rgba(80,90,160,.5)}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#d4dae8;border-radius:6px}
+select{appearance:none;-webkit-appearance:none;background:#fff;border:1px solid #e4e8f2;border-radius:7px;padding:7px 26px 7px 11px;font-size:11px;color:#33384a;cursor:pointer;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 3.5L5 6.5L8 3.5' stroke='%239aa0b2' fill='none' stroke-width='1.4'/></svg>");background-repeat:no-repeat;background-position:right 9px center}
+.navbtn:hover{background:#1c1d24 !important}
+.rowact:hover{filter:brightness(.97)}
+a{color:#6c7fe0}

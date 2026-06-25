@@ -1,0 +1,27 @@
+[package]
+name = "otc"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["lib", "cdylib"]
+doctest = false
+
+[dependencies]
+# >= 26: the address/source-key binding relies on Bn254Fr::from_bytes reducing
+# mod r, which earlier SDKs did not do. P26 also makes BN254 verify cheaper.
+soroban-sdk = { version = "26", features = ["alloc"] }
+
+[dev-dependencies]
+soroban-sdk = { version = "26", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+lto = true
+codegen-units = 1
+panic = "abort"

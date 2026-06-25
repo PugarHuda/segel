@@ -1,0 +1,60 @@
+{
+  "network": "testnet",
+  "project": "Segel",
+  "description": "Segel — confidential sealed-bid OTC desk on Stellar. Two BN254 Groth16 ZK circuits (bidValidity, auctionResult) verified on-chain by Soroban; an otc desk contract with real USDC escrow custody, Vickrey settlement, and per-RFQ nullifiers.",
+  "identity": {
+    "alias": "corredor",
+    "address": "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"
+  },
+  "token": {
+    "address": "CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2",
+    "note": "real testnet USDC asset (SAC); each bidder's good-faith escrow (= band_max) is custodied here, winner pays clearing to maker, losers refunded"
+  },
+  "aspRoot": "1a67e1520bae4f57e592dfbeac003a36ae2e8011e9fc000e081ed1cd19c5ebff",
+  "verifiers": {
+    "bidValidity": {
+      "contractId": "CAL5XO2NPC2ZFVQSXX7HSS6ARQOX6GL24LCR5SZVEIKENOLN2HUOK7DK",
+      "circuit": "circuits/bidValidity.circom",
+      "publicInputs": 8,
+      "proves": "commit binding + in-band range + proof-of-funds + ASP allow-list membership + fresh nullifier",
+      "verifyResult": "true",
+      "verifyTx": "https://stellar.expert/explorer/testnet/tx/8994686dc5d787c63c3690db810aec2653dae9dbf7a3b6c5818fe151a5624862"
+    },
+    "auctionResult": {
+      "contractId": "CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJHOLGGJEBY",
+      "circuit": "circuits/auctionResult.circom",
+      "publicInputs": 19,
+      "proves": "all commitments bind + winner = argmax + clearingPrice = second-highest (Vickrey), all in-circuit; losing bids never output",
+      "verifyResult": "true",
+      "tamperedResult": "rejected on-chain (Error(Contract, #0) / InvalidProof) when the clearing-price public input is flipped"
+    }
+  },
+  "otc": {
+    "contractId": "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3",
+    "wasm": "contracts/otc/",
+    "constructor": ["admin", "token", "bid_verifier", "auction_verifier", "asp_root"],
+    "functions": ["post_rfq", "commit_bid", "settle", "cancel_expired", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "balance"],
+    "security": {
+      "binding": "the contract builds every verifier public-input vector itself from typed values it controls (authenticated bidder, RFQ band, recorded commitments) — a proof cannot be reused with different inputs",
+      "proofOfFunds": "commit_bid pins availBal = band_max (the escrow) and then transfers that escrow from the bidder; the transfer must succeed, so the bidder provably holds >= band_max >= bid (the hidden bid is bound to escrowed funds)",
+      "vickreyBinding": "settle builds the auction public inputs from the RECORDED commitments (padded to N=8 with Poseidon(0,0,0)), so the proof is over exactly the on-chain sealed set",
+      "nullifier": "one bid per identity per RFQ (Sybil resistance), identity hidden",
+      "unitTests": "14/14 passing (contracts/otc/src/test.rs)"
+    }
+  },
+  "e2eLive": {
+    "description": "Full sealed-bid OTC flow verified live on testnet (scripts/e2e-testnet.mjs): post RFQ -> 3 sealed bids with real bidValidity proofs -> Vickrey settle. Winner bid 4900, clearing price 4200 (second-highest); losing bids never revealed on-chain.",
+    "postRfq": "https://stellar.expert/explorer/testnet/tx/9e37218f4a7411ac4226cd3883c02af0f9dd0b83ef36f766c03523837e001c55",
+    "commitBids": [
+      "https://stellar.expert/explorer/testnet/tx/f38279e66bfa7e968f7df82791a98d4857a975570823cbf30aabf4efd79351b8",
+      "https://stellar.expert/explorer/testnet/tx/c565bf661023983374f7286f66053283b10af66733fe54e13a8e72baff22dfae",
+      "https://stellar.expert/explorer/testnet/tx/1c20f8b85187662660b8abae1550e53f9ca4ae6f40681d23d85de8f7b7b50848"
+    ],
+    "settle": "https://stellar.expert/explorer/testnet/tx/201ed29f3150113b7947fd55e653327c1a3d8c8ba3f716e46271b766e6f84d03"
+  },
+  "circuits": {
+    "system": "Groth16 over BN254",
+    "trustedSetup": "Powers-of-Tau 2^14 (phase-1 generated locally for the hackathon build; production wants the Hermez perpetual ceremony + multi-party phase-2)",
+    "emptyCommit": "Poseidon(0,0,0) = 0x0bc188d27dcceadc1dcfb6af0a7af08fe2864eecec96c5ae7cee6db31ba599aa"
+  }
+}

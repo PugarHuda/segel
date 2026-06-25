@@ -1,0 +1,26 @@
+{
+  "name": "segel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Segel — confidential sealed-bid OTC desk on Stellar (ZK / Groth16 / BN254)",
+  "scripts": {
+    "circuit:bid": "bash scripts/build-circuit.sh bidValidity 14 scripts/gen-input-bid.mjs",
+    "circuit:auction": "bash scripts/build-circuit.sh auctionResult 14 scripts/gen-input-auction.mjs",
+    "circuit:all": "bash scripts/build-all-circuits.sh",
+    "test:proving": "node scripts/test-fullprove.mjs",
+    "test:negative": "node scripts/test-negative.mjs",
+    "serve": "node frontend/serve.mjs"
+  },
+  "devDependencies": {
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7",
+    "puppeteer-core": "^25.1.0",
+    "snarkjs": "^0.7.5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@stellar/stellar-sdk": "^14.6.1",
+    "js-sha3": "^0.9.3"
+  }
+}

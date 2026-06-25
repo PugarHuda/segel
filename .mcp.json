@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "segel": {
+      "command": "node",
+      "args": ["mcp/server.mjs"],
+      "description": "Segel — Stellar-native, read-only OTC desk tools: list_rfqs, bid_count, clearing_price, verify_settlement. Drops into Claude Desktop / Cursor / any MCP client."
+    }
+  }
+}
