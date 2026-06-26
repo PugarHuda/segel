@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Deploy Segel to Stellar testnet: bidValidity verifier, auctionResult verifier,
 # and the otc desk contract (constructor wires the verifiers + ASP root + USDC).
-# Reuses the funded `corredor` identity and the project-issued mock USDC SAC
-# (a testnet USDC-denominated asset, NOT Circle's canonical USDC).
+# Reuses the funded `corredor` identity and Circle's canonical testnet USDC SAC
+# (issuer GBBD47IF…) as the escrow/settlement asset.
 set -uo pipefail
 export PATH="/usr/local/bin:$HOME/.cargo/bin:$PATH"
 R="/mnt/c/Hackathons/Hackathon Stellar Real World ZK V2"

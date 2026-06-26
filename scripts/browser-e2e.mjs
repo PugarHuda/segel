@@ -22,6 +22,9 @@ try {
   page.on("pageerror", (e) => errs.push(String(e)));
   page.on("console", (m) => { if (m.type() === "error" && !/favicon|Failed to load resource|404/i.test(m.text())) errs.push(m.text()); });
   await page.goto(base + "/app.html", { waitUntil: "networkidle2", timeout: 45000 });
+  // wait for the app to actually render (modules load from esm.sh, then render()),
+  // then for the live RFQ read to settle — avoids a flaky check before first paint.
+  await page.waitForFunction(() => /Active RFQs/.test(document.body.innerText), { timeout: 40000 }).catch(() => {});
   await page.waitForFunction(() => !/loading live RFQs/.test(document.body.innerText), { timeout: 40000 }).catch(() => {});
   ok(await page.evaluate(() => document.body.innerText.includes("Active RFQs")), "desk renders + reads live RFQs from testnet");
 
