@@ -14,6 +14,7 @@ const OTC = "CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM";
 const SOURCE = "GBJSZAEYQW5GQVJV77KGBPIN246HALRBWZINOQXE7DZ4NNHRVCSZMHAQ";
 const server = new Sdk.rpc.Server(RPC);
 const u32 = (x) => Sdk.nativeToScVal(x, { type: "u32" });
+const sym = (s) => Sdk.nativeToScVal(s, { type: "symbol" });
 
 async function sim(method, ...args) {
   const acct = await server.getAccount(SOURCE);
@@ -50,6 +51,12 @@ mcp.tool("clearing_price", "Public clearing price of a settled RFQ (null if unse
 mcp.tool("verify_settlement", "Check whether an RFQ is settled and return {settled, clearing, winner}.", { rfqId: z.number() }, async ({ rfqId }) => {
   const s = await sim("settlement", u32(rfqId));
   return { content: [{ type: "text", text: JSON.stringify(s ? { settled: true, clearing: s.clearing.toString(), winner: s.winner } : { settled: false }) }] };
+});
+
+mcp.tool("mark_price", "Live market mark (USD) for a symbol (e.g. XLM, USDC) via the desk's on-chain Reflector SEP-40 oracle read.", { symbol: z.string() }, async ({ symbol }) => {
+  const p = await sim("mark_price", sym(symbol));
+  const usd = p ? Number(p.price) / 1e14 : null;
+  return { content: [{ type: "text", text: JSON.stringify(p ? { symbol, usd, raw: p.price.toString(), decimals: 14, timestamp: Number(p.timestamp) } : { symbol, usd: null }) }] };
 });
 
 await mcp.connect(new StdioServerTransport());

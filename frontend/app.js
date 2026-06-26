@@ -252,7 +252,7 @@ function viewAudit() {
   const healthRows = probing
     ? ["Soroban RPC", "OTC desk", "bidValidity verifier", "auctionResult verifier", "Poseidon host fn", "USDC SAC escrow", "Reflector XLM mark"].map((n) => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px"><span style="color:#33384a">${n}</span><span style="color:#9aa0b2">checking…</span></div>`).join("")
     : S.health.map(([n, s, ok]) => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px"><span style="color:#33384a">${n}</span><span style="display:inline-flex;align-items:center;gap:6px;color:${ok ? "#2f9b6e" : "#b04a4a"}"><span style="width:14px;height:14px;border-radius:50%;background:${ok ? "#2f9b6e" : "#b04a4a"};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px">${ok ? "✓" : "✗"}</span>${esc(s)}</span></div>`).join("");
-  const mcp = [["list_rfqs()", "open RFQs from on-chain state", "RFQ[]"], ["verify_settlement(rfq)", "recheck a settled RFQ on-chain", "{settled, clearing, winner}"], ["clearing_price(rfq)", "public clearing price", "number"], ["bid_count(rfq)", "sealed bid count", "number"]];
+  const mcp = [["list_rfqs()", "open RFQs from on-chain state", "RFQ[]"], ["verify_settlement(rfq)", "recheck a settled RFQ on-chain", "{settled, clearing, winner}"], ["clearing_price(rfq)", "public clearing price", "number"], ["bid_count(rfq)", "sealed bid count", "number"], ["mark_price(sym)", "live Reflector USD mark", "{usd, timestamp}"]];
   return `<div>${header("SEGEL · AUDIT SURFACE", "Audit &amp; Integrations")}
     <div class="g2" style="margin-top:14px">
       <div style="border:1px solid #edf0f7;border-radius:13px;padding:18px;background:#fbfcff">
