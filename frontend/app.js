@@ -55,11 +55,9 @@ const rnd = () => { const a = new Uint8Array(31); crypto.getRandomValues(a); let
 // ============================ RENDER ============================
 function render() {
   $("app").innerHTML = `
-  <div style="padding:18px;min-height:100vh;background-image:repeating-linear-gradient(90deg,rgba(126,147,230,0.05) 0,rgba(126,147,230,0.05) 1px,transparent 1px,transparent 64px)">
-    <div style="max-width:1320px;margin:0 auto;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 30px 80px -40px rgba(40,50,90,.5);display:grid;grid-template-columns:218px 1fr;min-height:720px">
-      ${sidebar()}
-      <div style="position:relative;overflow:hidden">${S.toast ? toastEl() : ""}${mainView()}</div>
-    </div>
+  <div class="desk">
+    ${sidebar()}
+    <div class="desk-main">${S.toast ? toastEl() : ""}<div class="desk-inner">${mainView()}</div></div>
   </div>
   ${S.modal ? modalEl() : ""}`;
   bind();
@@ -84,24 +82,24 @@ function sidebar() {
       <span class="msi" style="font-size:18px;color:${a ? "#fff" : "#6a6e7e"}">${ic}</span>${l}</button>`;
   }).join("");
   const walletBox = S.connected
-    ? `<div style="background:#131318;border-radius:10px;padding:11px 12px">
+    ? `<div class="side-wallet" style="background:#131318;border-radius:10px;padding:11px 12px;min-width:148px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
           <span style="font-size:9px;color:#c2a45a;border:1px solid #5a4e2e;border-radius:5px;padding:2px 6px">${chain.usingWallet() ? "FREIGHTER" : "DEMO KEY"}</span>
           <button data-act="disconnect" title="Disconnect" class="msi" style="background:none;border:none;color:#6a6e7e;cursor:pointer;font-size:14px;padding:0">logout</button>
         </div>
-        <div style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:16px">${fmt(S.balance)} <span style="font-size:10px;color:#8a8e9e">USDC</span></div>
+        <div class="wbal" style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:16px">${fmt(S.balance)} <span style="font-size:10px;color:#8a8e9e">USDC</span></div>
         <div style="font-size:10px;color:#8a8e9e;margin-top:2px">${short(S.address)}</div>
       </div>`
-    : `<button data-act="connect" style="background:#fff;color:#0b0b0e;border:none;border-radius:9px;padding:11px;font-size:12px;font-weight:600;cursor:pointer">Connect wallet</button>`;
-  return `<div style="background:#0b0b0e;color:#fff;display:flex;flex-direction:column;padding:18px 14px">
-    <div style="display:flex;align-items:center;gap:10px;padding:4px 6px 14px">${logo()}
+    : `<button data-act="connect" class="side-wallet" style="background:#fff;color:#0b0b0e;border:none;border-radius:9px;padding:11px 16px;font-size:12px;font-weight:600;cursor:pointer">Connect wallet</button>`;
+  return `<div class="desk-side">
+    <div class="side-brand" style="display:flex;align-items:center;gap:10px;padding:4px 6px 14px">${logo()}
       <div><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:17px;letter-spacing:1px;line-height:1">SEGEL</div>
         <div style="font-size:8.5px;color:#6a6e7e;letter-spacing:1px;margin-top:2px">STELLAR · TESTNET</div></div></div>
-    <div style="display:flex;align-items:center;gap:7px;background:#131318;border-radius:8px;padding:8px 10px;margin-bottom:16px">
+    <div class="side-rpc" style="display:flex;align-items:center;gap:7px;background:#131318;border-radius:8px;padding:8px 10px;margin-bottom:16px">
       <span style="width:7px;height:7px;border-radius:50%;background:#4cae8a;flex-shrink:0"></span>
       <span style="font-size:9.5px;color:#8a8e9e;letter-spacing:.5px">RPC ONLINE · soroban</span></div>
-    <button data-nav="create" style="display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff;border:none;border-radius:9px;padding:11px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:16px"><span class="msi" style="font-size:17px">add</span>New RFQ</button>
-    <div style="display:flex;flex-direction:column;gap:2px;flex:1">${items}</div>
+    <button data-nav="create" class="side-newbtn" style="display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff;border:none;border-radius:9px;padding:11px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:16px"><span class="msi" style="font-size:17px">add</span>New RFQ</button>
+    <div class="side-nav">${items}</div>
     ${walletBox}
   </div>`;
 }
@@ -147,7 +145,7 @@ function viewActive() {
       else { label = "Settle"; bg = "#fbeede"; col = "#b07320"; act = `settle:${r.id}`; }
     }
     const exp = expired ? "expired" : "open";
-    return `<div style="display:grid;grid-template-columns:0.8fr 1.7fr 0.7fr 1fr 1.2fr 0.55fr 1fr 0.8fr;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid #f4f6fb;background:${mine ? "#f9faff" : "#fff"}">
+    return `<div class="rfq-grid" style="display:grid;grid-template-columns:0.8fr 1.7fr 0.7fr 1fr 1.2fr 0.55fr 1fr 0.8fr;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid #f4f6fb;background:${mine ? "#f9faff" : "#fff"}">
       <span style="font-size:11px;font-weight:600;color:#33384a">RFQ-${String(r.id).padStart(3, "0")}</span>
       <div style="display:flex;align-items:center;gap:7px">
         <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:20px;height:20px;border-radius:50%;background:${s.bg};color:${s.fg};font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center">${esc(sT.slice(0, 3))}</span><span style="font-size:10.5px;font-weight:600">${esc(sT)}</span></span>
@@ -163,11 +161,12 @@ function viewActive() {
     </div>`;
   }).join("");
   const empty = `<div style="padding:40px;text-align:center;color:#aab0c0;font-size:12px">${S.loading ? "loading live RFQs from Stellar testnet…" : "No RFQs yet — create the first one."}</div>`;
-  return `<div style="padding:24px 26px">
+  return `<div>
     ${header("SIZE BANDS VISIBLE · BID AMOUNTS ENCRYPTED", "Active RFQs", `<span style="font-size:11px;color:#9aa0b2;background:#f1f3f9;border-radius:7px;padding:7px 12px;font-weight:600">${S.rfqs.length} live</span>`)}
-    <div style="display:grid;grid-template-columns:0.8fr 1.7fr 0.7fr 1fr 1.2fr 0.55fr 1fr 0.8fr;gap:10px;padding:16px 14px 9px;font-size:9.5px;letter-spacing:.5px;color:#aab0c0;border-bottom:1px solid #eef1f8">
-      <span>RFQ ID</span><span>SELL → BUY</span><span>MODE</span><span>MAKER</span><span>BAND</span><span>BIDS</span><span>STATUS</span><span></span></div>
-    ${S.rfqs.length ? rows : empty}</div>`;
+    <div class="tablescroll" style="margin-top:8px">
+      <div class="rfq-grid" style="display:grid;grid-template-columns:0.8fr 1.7fr 0.7fr 1fr 1.2fr 0.55fr 1fr 0.8fr;gap:10px;padding:16px 14px 9px;font-size:9.5px;letter-spacing:.5px;color:#aab0c0;border-bottom:1px solid #eef1f8">
+        <span>RFQ ID</span><span>SELL → BUY</span><span>MODE</span><span>MAKER</span><span>BAND</span><span>BIDS</span><span>STATUS</span><span></span></div>
+      ${S.rfqs.length ? rows : empty}</div></div>`;
 }
 
 function viewCreate() {
@@ -179,9 +178,9 @@ function viewCreate() {
       <div style="font-size:10.5px;color:#9aa0b2;margin-bottom:12px">${sub}</div>
       <div style="font-size:11.5px;color:#5d6273;line-height:1.6;margin-bottom:16px">${body}</div>
       <div style="display:flex;gap:20px"><div><div style="font-size:9.5px;color:#9aa0b2">${k1}</div><div style="font-size:13px;font-weight:600">${v1}</div></div><div><div style="font-size:9.5px;color:#9aa0b2">${k2}</div><div style="font-size:13px;font-weight:600">${v2}</div></div></div></div>`;
-  return `<div style="padding:24px 26px">
+  return `<div>
     ${header("CHOOSE EXECUTION MODE", "Create RFQ")}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0 18px">
+    <div class="g2" style="margin:16px 0 18px">
       ${card(0, "swap_horiz", "#6c7fe0", "Direct OTC", "One maker · one taker", "Atomic bilateral settlement with a known counterparty. Maker sets a hidden minimum; the first qualifying taker fills.", "Latency", "&lt; 5s", "Privacy", "End-to-end")}
       ${card(1, "hub", "#9a6ce0", "RFQ Auction", "N takers · Vickrey pricing", "Multi-bidder sealed auction. Highest sealed bid wins, pays the second-highest price. Optimal execution for size.", "Pricing", "Vickrey", "Max bidders", "8")}
     </div>
@@ -191,7 +190,7 @@ function viewCreate() {
       <div style="font-size:11.5px;color:#c2c7d6;line-height:1.6">Every settle posts the same on-chain status. A winning fill and a refunded loser look identical to observers — only the winner learns they won, proven in zero-knowledge.</div></div></div>
     <div style="border:1px solid #edf0f7;border-radius:14px;padding:20px;max-width:560px">
       <div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:14px">${m === 0 ? "DIRECT OTC" : "RFQ AUCTION"} · DETAILS</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:13px">
+      <div class="g2" style="gap:13px">
         ${field("PAIR", "pair", S.form.pair, "1 / -1")}
         <div><label style="font-size:10.5px;color:#8a8f9c;display:block;margin-bottom:6px">SIDE</label>
           <div style="display:flex;gap:6px">
@@ -217,7 +216,7 @@ function viewActivity() {
       <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">${esc(e.title)}</div><div style="font-size:10.5px;color:#8a8f9c">${esc(e.detail)}</div></div>
       <div style="text-align:right;flex-shrink:0"><div style="font-size:10px;color:#9aa0b2">${e.time}</div>${e.txHash ? `<a href="${chain.txExplorer(e.txHash)}" target="_blank" style="font-size:9.5px;text-decoration:none">${e.tx} ↗</a>` : ""}</div></div>`;
   }).join("");
-  return `<div style="padding:24px 26px">${header("SEGEL · ON-CHAIN ACTIVITY", "My Activity")}
+  return `<div>${header("SEGEL · ON-CHAIN ACTIVITY", "My Activity")}
     <div style="display:flex;flex-direction:column;gap:8px;max-width:780px;margin-top:14px">${S.events.length ? rows : `<div style="padding:30px;text-align:center;color:#aab0c0;font-size:12px">No activity yet. Post an RFQ or seal a bid.</div>`}</div></div>`;
 }
 
@@ -231,13 +230,13 @@ function viewPortfolio() {
     <div style="font-size:10px;color:${color === "dark" ? "#8a8e9e" : "#9aa0b2"};margin-top:3px">${note}</div></div>`;
   const list = (title, arr, sub) => `<div><div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:10px">${title}</div>
     <div style="display:flex;flex-direction:column;gap:7px">${arr.length ? arr.map(sub).join("") : `<div style="font-size:10.5px;color:#aab0c0;text-align:center;padding:14px;background:#fbfcff;border:1px dashed #e2e7f2;border-radius:9px">None yet</div>`}</div></div>`;
-  return `<div style="padding:24px 26px">${header("SEGEL · YOUR POSITIONS", "Portfolio")}
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:16px 0 20px">
+  return `<div>${header("SEGEL · YOUR POSITIONS", "Portfolio")}
+    <div class="g3" style="margin:16px 0 20px">
       ${card("AVAILABLE", fmt(S.balance), "dark", "USDC")}
       ${card("YOUR RFQS", mine.length, "p", "posted")}
       ${card("YOUR SEALED BIDS", myBids.reduce((a, r) => a + openingsFor(r.id).length, 0), "g", "identity private")}
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+    <div class="g2" style="gap:18px">
       ${list("YOUR RFQS", mine, (r) => `<div style="display:flex;justify-content:space-between;align-items:center;background:#fbfcff;border:1px solid #edf0f7;border-radius:9px;padding:10px 12px"><div><div style="font-size:11.5px;font-weight:600">${esc(r.pair)}</div><div style="font-size:9.5px;color:#9aa0b2">RFQ-${String(r.id).padStart(3, "0")} · ${r.bids} bids</div></div><span style="font-size:9.5px;font-weight:600;padding:3px 8px;border-radius:5px;background:${(STATUS[r.status] || STATUS[0]).bg};color:${(STATUS[r.status] || STATUS[0]).c}">${(STATUS[r.status] || STATUS[0]).l}</span></div>`)}
       ${list("YOUR SEALED BIDS", myBids, (r) => `<div style="display:flex;justify-content:space-between;align-items:center;background:#fbfcff;border:1px solid #edf0f7;border-radius:9px;padding:10px 12px"><div><div style="font-size:11.5px;font-weight:600">${esc(r.pair)}</div><div style="font-size:9.5px;color:#9aa0b2;letter-spacing:1px">commit •••• · RFQ-${String(r.id).padStart(3, "0")}</div></div><span style="font-size:9.5px;font-weight:600;padding:3px 8px;border-radius:5px;background:#ece2f6;color:#7a5fae">${openingsFor(r.id).length} sealed</span></div>`)}
     </div></div>`;
@@ -250,8 +249,8 @@ function viewAudit() {
   ];
   const health = [["Soroban RPC", "reachable"], ["bidValidity verifier", "verify → true"], ["auctionResult verifier", "verify → true"], ["Poseidon host fn", "P25 active"], ["USDC SAC custody", "funded"]];
   const mcp = [["list_rfqs()", "open RFQs from on-chain state", "RFQ[]"], ["verify_settlement(tx)", "recheck a settle proof", "{valid, clearing}"], ["clearing_price(rfq)", "public clearing price", "number"], ["bid_count(rfq)", "sealed bid count", "number"]];
-  return `<div style="padding:24px 26px">${header("SEGEL · AUDIT SURFACE", "Audit &amp; Integrations")}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px">
+  return `<div>${header("SEGEL · AUDIT SURFACE", "Audit &amp; Integrations")}
+    <div class="g2" style="margin-top:14px">
       <div style="border:1px solid #edf0f7;border-radius:13px;padding:18px;background:#fbfcff">
         <div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:13px">DEPLOYED ON TESTNET</div>
         <div style="display:flex;flex-direction:column;gap:11px">${contracts.map(([n, id]) => `<div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:12px;font-weight:600">${n}</div><div style="font-size:10px;color:#9aa0b2">${short(id)}</div></div><a href="${chain.explorer(id)}" target="_blank" style="font-size:10px;text-decoration:none;display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:#4cae8a"></span>explorer ↗</a></div>`).join("")}</div></div>
@@ -269,12 +268,12 @@ function viewAudit() {
         <div style="font-size:10.5px;color:#5d6273;line-height:1.6">Binding: the contract builds every verifier public-input vector itself. Tampering the clearing price → rejected on-chain (InvalidProof).</div></div>
       <div style="border:1px solid #edf0f7;border-radius:13px;padding:18px;background:#0b0b0e;grid-column:1 / -1">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div style="font-size:11px;letter-spacing:1px;color:#7e8294">MCP SERVER · Stellar-native, read-only</div><span style="font-size:10px;color:#4cae8a;display:inline-flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#4cae8a"></span>spec shipped</span></div>
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">${mcp.map(([call, desc, ret]) => `<div style="background:#16161b;border-radius:10px;padding:12px 13px"><div style="font-size:11.5px;color:#cdd2e0;font-weight:600">${call}</div><div style="font-size:10px;color:#7e8294;margin-top:5px;line-height:1.5">${desc}</div><div style="font-size:9.5px;color:#5a8f7a;margin-top:7px">→ ${ret}</div></div>`).join("")}</div></div>
+        <div class="g2" style="gap:10px">${mcp.map(([call, desc, ret]) => `<div style="background:#16161b;border-radius:10px;padding:12px 13px"><div style="font-size:11.5px;color:#cdd2e0;font-weight:600">${call}</div><div style="font-size:10px;color:#7e8294;margin-top:5px;line-height:1.5">${desc}</div><div style="font-size:9.5px;color:#5a8f7a;margin-top:7px">→ ${ret}</div></div>`).join("")}</div></div>
     </div></div>`;
 }
 
 function viewFaucet() {
-  return `<div style="padding:24px 26px;display:flex;justify-content:center">
+  return `<div style="display:flex;justify-content:center">
     <div style="max-width:420px;width:100%;margin-top:30px;text-align:center;border:1px solid #edf0f7;border-radius:16px;padding:30px;background:#fbfcff">
       <span class="msi" style="font-size:40px;color:#6c7fe0">water_drop</span>
       <div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:20px;margin:10px 0 6px">Testnet Faucet</div>
@@ -292,8 +291,8 @@ function viewDocs() {
     ["4", "SETTLE", "Prover runs auctionResult: one proof of winner + Vickrey clearing price, without opening losing bids."],
     ["5", "CLEAR", "Contract verifies → winner pays clearing to maker, surplus + losers refunded. Receipt on-chain."],
   ];
-  return `<div style="padding:24px 26px">${header("SEGEL · HOW IT WORKS", "Docs")}
-    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:22px;margin-top:14px">
+  return `<div>${header("SEGEL · HOW IT WORKS", "Docs")}
+    <div class="docs-grid" style="margin-top:14px">
       <div><div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:14px">THE 5-STEP FLOW</div>
         <div style="display:flex;flex-direction:column;gap:10px">${steps.map(([n, t, b]) => `<div style="display:flex;gap:13px;align-items:flex-start;background:#fbfcff;border:1px solid #edf0f7;border-radius:11px;padding:13px 15px"><span style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:18px;color:#b6bdd0;flex-shrink:0;width:24px">${n}</span><div><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">${t}</div><div style="font-size:11px;color:#5d6273;line-height:1.6">${b}</div></div></div>`).join("")}</div></div>
       <div><div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:14px">CIRCUITS &amp; VISIBILITY</div>
