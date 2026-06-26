@@ -1,15 +1,15 @@
 {
   "network": "testnet",
   "project": "Segel",
-  "description": "Segel — confidential sealed-bid OTC desk on Stellar. Two BN254 Groth16 ZK circuits (bidValidity, auctionResult) verified on-chain by Soroban; an otc desk contract with USDC-denominated SAC escrow custody (project-issued mock asset, not Circle's USDC), Vickrey settlement, and per-RFQ nullifiers.",
+  "description": "Segel — confidential sealed-bid OTC desk on Stellar. Two BN254 Groth16 ZK circuits (bidValidity, auctionResult) verified on-chain by Soroban; an otc desk contract that escrows and settles in Circle's real testnet USDC (SAC), with Vickrey settlement, per-RFQ nullifiers, and a live Reflector price oracle.",
   "identity": {
     "alias": "corredor",
     "address": "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"
   },
   "token": {
-    "address": "CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2",
-    "issuer": "GC7SWGHRQLMP4SW2AOBRSC2HFKVPNPHBH5A3PX3ZDVEJFMYKLWQ3SY3B",
-    "note": "testnet USDC-denominated SAC. Issuer is a PROJECT-CONTROLLED mock (GC7SWGHR…, 1 holder), NOT Circle's canonical testnet USDC (GBBD47IF…). Custody mechanics are real SAC transfers: each bidder's good-faith escrow (= band_max) is custodied here, winner pays clearing to maker, losers refunded."
+    "address": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+    "issuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+    "note": "Circle's CANONICAL testnet USDC (issuer GBBD47IF…, ~38k holders) via its SAC. The desk escrows and settles in real Circle USDC: each bidder's good-faith escrow (= band_max) is custodied here, winner pays clearing to maker, losers refunded. Migrated from the earlier project-issued mock (GC7SWGHR…) via upgrade() + set_token (see tokenMigration)."
   },
   "aspRoot": "1a67e1520bae4f57e592dfbeac003a36ae2e8011e9fc000e081ed1cd19c5ebff",
   "verifiers": {
@@ -35,7 +35,14 @@
     "previousContractIds": ["CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR", "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3"],
     "wasm": "contracts/otc/",
     "constructor": ["admin", "token", "bid_verifier", "auction_verifier", "asp_root", "oracle"],
-    "functions": ["post_rfq", "commit_bid", "settle", "cancel_expired", "set_verifiers", "set_admin", "set_oracle", "upgrade", "mark_price", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "balance", "admin", "verifiers", "oracle"],
+    "functions": ["post_rfq", "commit_bid", "settle", "cancel_expired", "set_verifiers", "set_admin", "set_oracle", "set_token", "upgrade", "mark_price", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "balance", "admin", "verifiers", "oracle", "token_address"],
+    "tokenMigration": {
+      "note": "Migrated the desk to Circle's real testnet USDC WITHOUT a redeploy — proves the new upgrade() path. Same contract id, live site unaffected.",
+      "from": "GC7SWGHR… project-issued mock USDC SAC",
+      "to": "Circle canonical testnet USDC SAC CBIELTK6…",
+      "upgradeTx": "https://stellar.expert/explorer/testnet/tx/aff419f7b440464dc54c24982a25acacc9ebbb52ed82d8bb632cbc8fd38ec385",
+      "setTokenTx": "https://stellar.expert/explorer/testnet/tx/fee5894345254efa4efa824eb56ee226d34c9ebce5b9eb5d0990f54cffb69db5"
+    },
     "oracleIntegration": {
       "provider": "Reflector (SEP-40)",
       "feed": "External CEX & DEX prices (testnet)",
@@ -48,19 +55,19 @@
       "proofOfFunds": "commit_bid pins availBal = band_max (the escrow) and then transfers that escrow from the bidder; the transfer must succeed, so the bidder provably holds >= band_max >= bid (the hidden bid is bound to escrowed funds)",
       "vickreyBinding": "settle builds the auction public inputs from the RECORDED commitments (padded to N=8 with Poseidon(0,0,0)), so the proof is over exactly the on-chain sealed set",
       "nullifier": "one bid per identity per RFQ (Sybil resistance), identity hidden",
-      "adminControls": "admin-gated set_verifiers (rotate a buggy verifier — previously immutable), set_admin (hand over the role), set_oracle (swap the price feed), and upgrade (in-place WASM upgrade, keeps the contract id); instance-storage TTL is extended on every state change so config cannot expire",
-      "unitTests": "16/16 passing (contracts/otc/src/test.rs)"
+      "adminControls": "admin-gated set_verifiers (rotate a buggy verifier — previously immutable), set_admin (hand over the role), set_oracle (swap the price feed), set_token (migrate the escrow asset), and upgrade (in-place WASM upgrade, keeps the contract id); instance-storage TTL is extended on every state change so config cannot expire",
+      "unitTests": "17/17 passing (contracts/otc/src/test.rs)"
     }
   },
   "e2eLive": {
-    "description": "Full sealed-bid OTC flow verified live on testnet (scripts/e2e-testnet.mjs): post RFQ -> 3 sealed bids with real bidValidity proofs -> Vickrey settle. Winner bid 4900, clearing price 4200 (second-highest); losing bids never revealed on-chain.",
-    "postRfq": "https://stellar.expert/explorer/testnet/tx/32e2ca93cf03a751ae63eaab6191667a82f61112e937d9b4fd6467493088d767",
+    "description": "Full sealed-bid OTC flow verified live on testnet in REAL Circle USDC (scripts/e2e-testnet.mjs): post RFQ -> 3 sealed bids with real bidValidity proofs -> Vickrey settle. Winner bid 4900, clearing price 4200 (second-highest); losing bids never revealed on-chain. Escrow + payouts are Circle's canonical testnet USDC.",
+    "postRfq": "https://stellar.expert/explorer/testnet/tx/e7c8668528c39adf4dd512d569d11bb18877643b9f7117f4372a478a44c478ca",
     "commitBids": [
-      "https://stellar.expert/explorer/testnet/tx/68688b472b4b0b99fe963479f76019dd742554a0c9a72b64d07bf9f5bbddf8bc",
-      "https://stellar.expert/explorer/testnet/tx/03384fd250e44fb46daa788e49a2dc55687cd9f88536589226144d2f07e20ed3",
-      "https://stellar.expert/explorer/testnet/tx/e9689f95689fc6d095a989248f22229fcb458ad173eee7eda346ac10e3ca044e"
+      "https://stellar.expert/explorer/testnet/tx/af723ff7361c4a239d88acc4de4cb3d8c1d2a67c5d08eac0de60d136e94035d3",
+      "https://stellar.expert/explorer/testnet/tx/b1039b4f3f1e48b91fb855bd1121e21a4877d473ed1d41d7f120b613d662d0a2",
+      "https://stellar.expert/explorer/testnet/tx/a92669a21d698a81354d91ad4fbbb2c01e3a28294c92859dd5861e341198b6cd"
     ],
-    "settle": "https://stellar.expert/explorer/testnet/tx/98a5633fc15ba033d0bf5b25035cda7a585747b1543e31e4088b25c90340c871"
+    "settle": "https://stellar.expert/explorer/testnet/tx/6cdba51be153182a47c372107e4885665541fe2591de781c09c73ad897ae3ee5"
   },
   "circuits": {
     "system": "Groth16 over BN254",

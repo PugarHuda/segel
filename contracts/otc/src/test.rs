@@ -292,6 +292,16 @@ fn admin_can_rotate_verifiers_and_admin() {
     assert_eq!(c.otc.admin(), new_admin);
 }
 
+// Admin can migrate the escrow token (e.g. mock USDC -> Circle's USDC SAC).
+#[test]
+fn admin_can_set_token() {
+    let env = Env::default();
+    let c = setup(&env);
+    let new_token = Address::generate(&env);
+    c.otc.set_token(&new_token);
+    assert_eq!(c.otc.token_address(), new_token);
+}
+
 // Reflector integration: mark_price() does a real cross-contract SEP-40 read.
 #[test]
 fn mark_price_reads_oracle() {

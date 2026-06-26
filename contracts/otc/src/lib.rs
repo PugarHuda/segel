@@ -180,6 +180,20 @@ impl Otc {
         env.events().publish((symbol_short!("setadmin"),), new_admin);
     }
 
+    /// Admin-only: switch the escrow/settlement token (e.g. migrate the desk from
+    /// the demo mock USDC to Circle's canonical USDC SAC). Only safe when no escrow
+    /// is mid-flight in the previous token.
+    pub fn set_token(env: Env, token: Address) {
+        Self::require_admin(&env);
+        env.storage().instance().set(&DataKey::Token, &token);
+        Self::bump_instance(&env);
+        env.events().publish((symbol_short!("settoken"),), token);
+    }
+
+    pub fn token_address(env: Env) -> Address {
+        env.storage().instance().get(&DataKey::Token).unwrap()
+    }
+
     /// Admin-only: point the desk at a different SEP-40 oracle.
     pub fn set_oracle(env: Env, oracle: Address) {
         Self::require_admin(&env);

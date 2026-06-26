@@ -10,8 +10,8 @@ bid stays hidden forever** — while the whole thing remains verifiable on-chain
 
 Built for the [Stellar Hacks: Real-World ZK](https://dorahacks.io/hackathon/stellar-hacks-zk)
 hackathon. Two Circom/Groth16/BN254 circuits do the real work; a Soroban contract
-verifies the proofs on-chain and custodies a testnet USDC-denominated asset
-(a project-issued mock SAC — see the note under "What's real").
+verifies the proofs on-chain and escrows + settles in **Circle's real testnet
+USDC**, with a live Reflector price oracle.
 
 ---
 
@@ -34,7 +34,7 @@ verifies the proofs on-chain and custodies a testnet USDC-denominated asset
 
   | Contract | Role | Verified |
   |---|---|---|
-  | [otc desk](https://stellar.expert/explorer/testnet/contract/CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM) | RFQ, sealed-bid commit-set, USDC escrow, Vickrey settle, refunds | [post](https://stellar.expert/explorer/testnet/tx/32e2ca93cf03a751ae63eaab6191667a82f61112e937d9b4fd6467493088d767) · [bid](https://stellar.expert/explorer/testnet/tx/68688b472b4b0b99fe963479f76019dd742554a0c9a72b64d07bf9f5bbddf8bc) · [settle](https://stellar.expert/explorer/testnet/tx/98a5633fc15ba033d0bf5b25035cda7a585747b1543e31e4088b25c90340c871) live |
+  | [otc desk](https://stellar.expert/explorer/testnet/contract/CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM) | RFQ, sealed-bid commit-set, USDC escrow, Vickrey settle, refunds | [post](https://stellar.expert/explorer/testnet/tx/e7c8668528c39adf4dd512d569d11bb18877643b9f7117f4372a478a44c478ca) · [bid](https://stellar.expert/explorer/testnet/tx/af723ff7361c4a239d88acc4de4cb3d8c1d2a67c5d08eac0de60d136e94035d3) · [settle](https://stellar.expert/explorer/testnet/tx/6cdba51be153182a47c372107e4885665541fe2591de781c09c73ad897ae3ee5) live |
   | [bidValidity verifier](https://stellar.expert/explorer/testnet/contract/CAL5XO2NPC2ZFVQSXX7HSS6ARQOX6GL24LCR5SZVEIKENOLN2HUOK7DK) | verifies sealed-bid validity | `verify` → [`true`](https://stellar.expert/explorer/testnet/tx/8994686dc5d787c63c3690db810aec2653dae9dbf7a3b6c5818fe151a5624862) |
   | [auctionResult verifier](https://stellar.expert/explorer/testnet/contract/CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJHOLGGJEBY) | verifies Vickrey settlement | `verify` → `true`; tampered → `InvalidProof` |
 
@@ -87,7 +87,7 @@ Nothing here is namechecked. Each item, if removed, breaks the desk:
 | **BN254 scalar-field arithmetic** (P26) | the contract builds the public-input `Vec<Bn254Fr>` itself (binding) |
 | **Poseidon host function** (P25) | `poseidon_hash(a,b)` exposed on-chain; matches circomlib exactly — the commitment scheme is verifiable on-chain, not asserted |
 | **Soroban** | the whole desk: RFQ state, commit-set, escrow custody, settlement |
-| **USDC SAC** | testnet USDC-denominated SAC escrow (project-issued mock asset, not Circle's USDC); winner pays clearing to maker, losers refunded |
+| **Circle USDC SAC** | escrow + settlement in **Circle's canonical testnet USDC** (issuer GBBD47IF…) via its SAC; winner pays clearing to maker, losers refunded |
 | **Reflector oracle (SEP-40)** | `mark_price(symbol)` does a real cross-contract `lastprice()` read of the Reflector testnet feed — a live market mark (XLM/USDC USD price) to sanity-check the sealed auction against the market; basis for a future oracle-derived maker reserve |
 | **Freighter / embedded key** | real signing of `post_rfq` / `commit_bid` / `settle` |
 
@@ -101,12 +101,12 @@ spoofed identity, or a different bid set — any mismatch fails verification.
 
 ## What's real (not mocked)
 
-- **Real escrow & settlement (mock USDC asset).** `commit_bid` pulls a good-faith
+- **Real escrow & settlement in Circle USDC.** `commit_bid` pulls a good-faith
   escrow (= `band_max`) from the bidder; `settle` pays the winner's clearing price
-  to the maker, refunds the surplus, and refunds every loser. The custody mechanics
-  are real SAC transfers; the asset is a **project-issued testnet "USDC" SAC (mock
-  issuer), not Circle's canonical testnet USDC** — swapping to Circle's SAC is a
-  config + redeploy.
+  to the maker, refunds the surplus, and refunds every loser — all in **Circle's
+  canonical testnet USDC** (issuer `GBBD47IF…`, ~38k holders) via its SAC. The desk
+  was migrated to Circle USDC live with no redeploy (admin `upgrade()` + `set_token`),
+  keeping the same contract id.
 - **Real proof-of-funds.** The escrow transfer must succeed, so the bidder
   provably holds ≥ `band_max` ≥ their hidden bid; the circuit binds `bid ≤ band_max`.
 - **Real on-chain verification.** Both verifiers return `true` for valid proofs
@@ -122,7 +122,7 @@ spoofed identity, or a different bid set — any mismatch fails verification.
 - **Live Reflector oracle (real cross-contract).** `mark_price("XLM")` invokes the
   Reflector SEP-40 testnet feed on-chain and returns the live USD mark (~$0.176);
   `mark_price("USDC")` ≈ $1.001. Surfaced live in the Audit tab.
-- **16/16 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
+- **17/17 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
   (`scripts/e2e-testnet.mjs`): post → 3 sealed bids → Vickrey settle on testnet.
 
 ## Still honestly simplified
@@ -178,7 +178,7 @@ node scripts/e2e-testnet.mjs
 
 **On-chain** (contracts already deployed — IDs above):
 - Build a verifier WASM: `bash scripts/wsl-build-verifier.sh circuits/build/<name>_vk.json <out>.wasm`
-- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 16/16)
+- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 17/17)
 - Deploy: `bash scripts/wsl-deploy.sh`
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`

@@ -12,7 +12,7 @@ npm run circuit:all
 bash scripts/wsl-build-verifier.sh circuits/build/bidValidity_vk.json   bid_verifier.wasm
 bash scripts/wsl-build-verifier.sh circuits/build/auctionResult_vk.json auction_verifier.wasm
 
-# desk contract (WSL) — cargo test -> 16/16
+# desk contract (WSL) — cargo test -> 17/17
 bash scripts/wsl-build-otc.sh
 ```
 
@@ -22,9 +22,11 @@ bash scripts/wsl-build-otc.sh
 bash scripts/wsl-deploy.sh    # deploys both verifiers + the otc desk (constructor)
 ```
 
-Constructor: `__constructor(admin, token, bid_verifier, auction_verifier, asp_root)`
-— `token` is a testnet USDC-denominated SAC (project-issued mock issuer, not
-Circle's USDC); `asp_root` comes from `node scripts/asp.mjs`.
+Constructor: `__constructor(admin, token, bid_verifier, auction_verifier, asp_root, oracle)`
+— `token` is Circle's canonical testnet USDC SAC (issuer `GBBD47IF…`); `oracle` is
+the Reflector SEP-40 feed; `asp_root` comes from `node scripts/asp.mjs`. The token
+can also be switched post-deploy via the admin `set_token` (used to migrate from
+the earlier mock USDC to Circle USDC without a redeploy).
 
 ## Verify a proof on-chain
 

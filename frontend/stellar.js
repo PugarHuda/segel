@@ -17,14 +17,12 @@ const PASSPHRASE = "Test SDF Network ; September 2015";
 export const OTC = "CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM";
 export const BID_VERIFIER = "CAL5XO2NPC2ZFVQSXX7HSS6ARQOX6GL24LCR5SZVEIKENOLN2HUOK7DK";
 export const AUCTION_VERIFIER = "CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJHOLGGJEBY";
-export const USDC_SAC = "CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2";
+// Circle's canonical testnet USDC Stellar Asset Contract (issuer GBBD47IF…).
+export const USDC_SAC = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
 // Reflector SEP-40 oracle (testnet, External CEX & DEX feed) — read via OTC.mark_price.
 export const ORACLE = "CCYOZJCOPG34LLQQ7N24YXBM7LL62R7ONMZ3G6WZAAYPB5OYKOMJRN63";
-// Testnet USDC-denominated Stellar Asset Contract. NOTE: the issuer below is a
-// PROJECT-CONTROLLED mock — not Circle's canonical testnet USDC
-// (GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5). The escrow/custody
-// mechanics are real; the asset is a stand-in for demo purposes.
-const USDC = new Sdk.Asset("USDC", "GC7SWGHRQLMP4SW2AOBRSC2HFKVPNPHBH5A3PX3ZDVEJFMYKLWQ3SY3B");
+// Circle's REAL testnet USDC (issuer GBBD47IF…) — the desk escrows and settles in it.
+const USDC = new Sdk.Asset("USDC", "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5");
 
 // Throwaway testnet demo key (non-admin) — only signs demo txs. Public on purpose.
 const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
