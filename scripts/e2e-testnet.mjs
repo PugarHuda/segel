@@ -30,6 +30,24 @@ const g2 = (p) => fe(p[0][1]) + fe(p[0][0]) + fe(p[1][1]) + fe(p[1][0]);
 const scProof = (p) => ({ a: buf(g1(p.pi_a)), b: buf(g2(p.pi_b)), c: buf(g1(p.pi_c)) });
 const tx = (h) => `https://stellar.expert/explorer/testnet/tx/${h}`;
 
+// testnet RPC occasionally bounces a submit with TRY_AGAIN_LATER (congestion).
+// Retry the send with backoff; the seq number isn't consumed on a rejected send.
+async function send(at, label) {
+  for (let attempt = 1; ; attempt++) {
+    try { return await at.signAndSend(); }
+    catch (e) {
+      const msg = String(e?.message || e) + " " + JSON.stringify(e?.status ?? "");
+      if (attempt <= 5 && /TRY_AGAIN_LATER|TIMEOUT|ERROR|timed? ?out|50\d|429/i.test(msg)) {
+        const wait = 2000 * attempt;
+        console.log(`   …${label} transient send error (${attempt}/5), retrying in ${wait}ms`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 const W = "circuits/build";
 let poseidon, F;
 const pos = (arr) => F.toObject(poseidon(arr.map((x) => BigInt(x))));
@@ -68,7 +86,7 @@ async function main() {
     maker: ADDR, pair: "XLMUSDC", side: "SELL", mode: 1,
     band_min: bandMin, band_max: bandMax, deadline,
   });
-  const postRes = await postAt.signAndSend();
+  const postRes = await send(postAt, "post_rfq");
   const rfqId = postAt.result;
   console.log(`\n[1] post_rfq -> RFQ #${rfqId}  ${tx(postRes.sendTransactionResponse?.hash)}`);
 
@@ -88,7 +106,7 @@ async function main() {
     };
     const { proof } = await snarkjs.groth16.fullProve(input, `${W}/bidValidity_js/bidValidity.wasm`, `${W}/bidValidity_final.zkey`);
     const at = await c.commit_bid({ from: ADDR, rfq_id: Number(rfqId), commit: buf32(commit), nullifier: buf32(nullifier), proof: scProof(proof) });
-    const r = await at.signAndSend();
+    const r = await send(at, `commit_bid ${i + 1}`);
     openings.push({ bid: bid.toString(), nonce, bidderField, commit });
     console.log(`[2.${i + 1}] commit_bid (amount hidden) -> ${tx(r.sendTransactionResponse?.hash)}`);
   }
@@ -111,9 +129,11 @@ async function main() {
   };
   const { proof } = await snarkjs.groth16.fullProve(input, `${W}/auctionResult_js/auctionResult.wasm`, `${W}/auctionResult_final.zkey`);
   const at = await c.settle({ rfq_id: Number(rfqId), proof: scProof(proof), winner: ADDR, clearing: bid[ri] });
-  const r = await at.signAndSend();
+  const r = await send(at, "settle");
   console.log(`\n[3] settle (Vickrey) winner=#${wi} clearing=${bid[ri]} (losers hidden) -> ${tx(r.sendTransactionResponse?.hash)}`);
   console.log("\n✅ Full sealed-bid OTC flow verified live on Stellar testnet.");
 }
 
-main().catch((e) => { console.error("E2E FAILED:", e); process.exit(1); });
+// snarkjs leaves WASM workers on the event loop; exit explicitly so the test
+// terminates cleanly instead of hanging after the flow succeeds.
+main().then(() => process.exit(0)).catch((e) => { console.error("E2E FAILED:", e); process.exit(1); });
