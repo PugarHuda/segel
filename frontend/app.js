@@ -28,7 +28,7 @@ const S = {
   view: "active", connected: false, address: null, balance: "0",
   rfqs: [], events: [], loading: true, modal: null, toast: null,
   form: { pair: "XLM / USDC", side: "SELL", mode: 1, min: "3000", max: "5000", deadlineMin: "60" },
-  createMode: 1,
+  createMode: 1, health: null,
 };
 
 // ---- bid-opening store (so the maker can settle from this browser) ----
@@ -247,16 +247,19 @@ function viewAudit() {
     ["OTC desk", chain.OTC], ["bidValidity verifier", chain.BID_VERIFIER],
     ["auctionResult verifier", chain.AUCTION_VERIFIER], ["USDC SAC (escrow)", chain.USDC_SAC],
   ];
-  const health = [["Soroban RPC", "reachable"], ["bidValidity verifier", "verify → true"], ["auctionResult verifier", "verify → true"], ["Poseidon host fn", "P25 active"], ["USDC SAC custody", "funded"]];
-  const mcp = [["list_rfqs()", "open RFQs from on-chain state", "RFQ[]"], ["verify_settlement(tx)", "recheck a settle proof", "{valid, clearing}"], ["clearing_price(rfq)", "public clearing price", "number"], ["bid_count(rfq)", "sealed bid count", "number"]];
+  const probing = S.health === null || S.health === "loading";
+  const healthRows = probing
+    ? ["Soroban RPC", "OTC desk", "bidValidity verifier", "auctionResult verifier", "Poseidon host fn", "USDC SAC escrow"].map((n) => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px"><span style="color:#33384a">${n}</span><span style="color:#9aa0b2">checking…</span></div>`).join("")
+    : S.health.map(([n, s, ok]) => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px"><span style="color:#33384a">${n}</span><span style="display:inline-flex;align-items:center;gap:6px;color:${ok ? "#2f9b6e" : "#b04a4a"}"><span style="width:14px;height:14px;border-radius:50%;background:${ok ? "#2f9b6e" : "#b04a4a"};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px">${ok ? "✓" : "✗"}</span>${esc(s)}</span></div>`).join("");
+  const mcp = [["list_rfqs()", "open RFQs from on-chain state", "RFQ[]"], ["verify_settlement(rfq)", "recheck a settled RFQ on-chain", "{settled, clearing, winner}"], ["clearing_price(rfq)", "public clearing price", "number"], ["bid_count(rfq)", "sealed bid count", "number"]];
   return `<div>${header("SEGEL · AUDIT SURFACE", "Audit &amp; Integrations")}
     <div class="g2" style="margin-top:14px">
       <div style="border:1px solid #edf0f7;border-radius:13px;padding:18px;background:#fbfcff">
         <div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:13px">DEPLOYED ON TESTNET</div>
         <div style="display:flex;flex-direction:column;gap:11px">${contracts.map(([n, id]) => `<div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:12px;font-weight:600">${n}</div><div style="font-size:10px;color:#9aa0b2">${short(id)}</div></div><a href="${chain.explorer(id)}" target="_blank" style="font-size:10px;text-decoration:none;display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:#4cae8a"></span>explorer ↗</a></div>`).join("")}</div></div>
       <div style="border:1px solid #edf0f7;border-radius:13px;padding:18px;background:#fbfcff">
-        <div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:13px">INTEGRATION HEALTH</div>
-        <div style="display:flex;flex-direction:column;gap:10px">${health.map(([n, s]) => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px"><span style="color:#33384a">${n}</span><span style="display:inline-flex;align-items:center;gap:6px;color:#2f9b6e"><span style="width:14px;height:14px;border-radius:50%;background:#2f9b6e;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px">✓</span>${s}</span></div>`).join("")}</div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><span style="font-size:11px;letter-spacing:1px;color:#9aa0b2">INTEGRATION HEALTH · LIVE</span><button data-act="health" ${probing ? "disabled" : ""} style="font-size:10px;font-weight:600;border:none;cursor:pointer;background:#eef1fb;color:#3a4a8a;padding:5px 9px;border-radius:6px;${probing ? "opacity:.5" : ""}">${probing ? "probing…" : "Re-run"}</button></div>
+        <div style="display:flex;flex-direction:column;gap:10px">${healthRows}</div></div>
       <div style="border:1px solid #edf0f7;border-radius:13px;padding:18px;background:#fbfcff">
         <div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:13px">ON-CHAIN POSEIDON CHECK</div>
         <div style="font-size:11px;color:#5d6273;margin-bottom:12px;line-height:1.5">Call the contract's <b>poseidon_hash(1,2)</b> live and confirm it equals circomlib's poseidon([1,2]) — the commitment scheme is verifiable on-chain, not just asserted.</div>
@@ -267,19 +270,24 @@ function viewAudit() {
         <div style="display:flex;gap:10px;margin-bottom:13px"><div style="flex:1;text-align:center;background:#e6f5ee;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#2f9b6e">14</div><div style="font-size:9.5px;color:#5d8c75">unit tests</div></div><div style="flex:1;text-align:center;background:#eef1fb;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#3a4a8a">2</div><div style="font-size:9.5px;color:#6a72a0">circuits</div></div><div style="flex:1;text-align:center;background:#fbf3df;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#b08a2e">1</div><div style="font-size:9.5px;color:#9a7a3a">tamper test</div></div></div>
         <div style="font-size:10.5px;color:#5d6273;line-height:1.6">Binding: the contract builds every verifier public-input vector itself. Tampering the clearing price → rejected on-chain (InvalidProof).</div></div>
       <div style="border:1px solid #edf0f7;border-radius:13px;padding:18px;background:#0b0b0e;grid-column:1 / -1">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div style="font-size:11px;letter-spacing:1px;color:#7e8294">MCP SERVER · Stellar-native, read-only</div><span style="font-size:10px;color:#4cae8a;display:inline-flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#4cae8a"></span>spec shipped</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div style="font-size:11px;letter-spacing:1px;color:#7e8294">MCP SERVER · Stellar-native, read-only</div><span style="font-size:10px;color:#4cae8a;display:inline-flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#4cae8a"></span>live · reads on-chain</span></div>
         <div class="g2" style="gap:10px">${mcp.map(([call, desc, ret]) => `<div style="background:#16161b;border-radius:10px;padding:12px 13px"><div style="font-size:11.5px;color:#cdd2e0;font-weight:600">${call}</div><div style="font-size:10px;color:#7e8294;margin-top:5px;line-height:1.5">${desc}</div><div style="font-size:9.5px;color:#5a8f7a;margin-top:7px">→ ${ret}</div></div>`).join("")}</div></div>
     </div></div>`;
 }
 
 function viewFaucet() {
+  const demo = S.connected && !chain.usingWallet();
+  const blurb = demo
+    ? "The embedded demo key is already pre-funded with testnet USDC — there's nothing to request. Connect Freighter to fund your own wallet instead. Stellar testnet only — no real value."
+    : "Fund your own wallet with testnet USDC (friendbot XLM + a USDC trustline + a transfer) to post RFQs and seal bids. Stellar testnet only — no real value.";
+  const label = demo ? "Refresh balance" : "Fund my wallet with testnet USDC";
   return `<div style="display:flex;justify-content:center">
     <div style="max-width:420px;width:100%;margin-top:30px;text-align:center;border:1px solid #edf0f7;border-radius:16px;padding:30px;background:#fbfcff">
       <span class="msi" style="font-size:40px;color:#6c7fe0">water_drop</span>
       <div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:20px;margin:10px 0 6px">Testnet Faucet</div>
-      <div style="font-size:11.5px;color:#8a8f9c;line-height:1.6;margin-bottom:20px">Fund your account with testnet USDC to post RFQs and seal bids. Stellar testnet only — no real value.</div>
+      <div style="font-size:11.5px;color:#8a8f9c;line-height:1.6;margin-bottom:20px">${blurb}</div>
       <div style="background:#fff;border:1px solid #edf0f7;border-radius:10px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:#9aa0b2">Current balance</span><span style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:16px">${fmt(S.balance)} USDC</span></div>
-      <button data-act="dofaucet" style="width:100%;font-size:12.5px;font-weight:600;cursor:pointer;padding:13px;border-radius:10px;border:none;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff">Request 50,000 testnet USDC</button>
+      <button data-act="dofaucet" style="width:100%;font-size:12.5px;font-weight:600;cursor:pointer;padding:13px;border-radius:10px;border:none;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff">${label}</button>
     </div></div>`;
 }
 
@@ -361,6 +369,8 @@ function bind() {
   document.querySelectorAll("[data-act]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); act(b.dataset.act); });
   document.querySelectorAll("[data-form]").forEach((i) => i.oninput = () => { S.form[i.dataset.form] = i.value; });
   document.querySelectorAll("[data-stop]").forEach((d) => d.onclick = (e) => e.stopPropagation());
+  // auto-probe integration health once when the Audit view is opened
+  if (S.view === "audit" && S.health === null) { S.health = "loading"; doHealth(); }
   const amt = document.querySelector('[data-bid="amt"]'), sl = document.querySelector('[data-bid="slider"]');
   if (amt) amt.oninput = () => { S.modal.amount = amt.value; const s = document.querySelector('[data-bid="slider"]'); if (s && !isNaN(+amt.value)) s.value = amt.value; };
   if (sl) sl.oninput = () => { S.modal.amount = sl.value; const a = document.querySelector('[data-bid="amt"]'); if (a) a.value = sl.value; };
@@ -382,6 +392,12 @@ async function act(a) {
   if (cmd === "view") { S.view = "activity"; return render(); }
   if (cmd === "dofaucet") return doFaucet();
   if (cmd === "poseidon") return doPoseidon();
+  if (cmd === "health") { S.health = "loading"; render(); return doHealth(); }
+}
+
+async function doHealth() {
+  try { S.health = await chain.healthCheck(); } catch { S.health = []; }
+  if (S.view === "audit") render();
 }
 
 async function doConnect(kind) {
@@ -403,11 +419,18 @@ async function doConnect(kind) {
 async function doFaucet() {
   if (!S.connected) return toast("Connect a wallet first", "!", "#3a2a14", "#ffe0b0");
   try {
-    toast("Requesting testnet USDC…", "◷");
-    if (chain.usingWallet()) { await wallet.setupTestnetFunds(S.address, null, (m) => toast(m, "◷")); }
-    else { await chain.faucetUsdc(chain.DEMO_ADDRESS); }
-    logEvent("FAUCET", "Faucet", "received 50,000 testnet USDC");
-    await refreshBalance(); toast("USDC received", "✓");
+    if (chain.usingWallet()) {
+      // real funding: friendbot XLM + USDC trustline + a transfer from the demo whale
+      toast("Requesting testnet USDC…", "◷");
+      await wallet.setupTestnetFunds(S.address, null, (m) => toast(m, "◷"));
+      logEvent("FAUCET", "Faucet", "funded wallet with testnet USDC");
+      await refreshBalance(); toast("USDC received", "✓");
+    } else {
+      // the embedded demo key IS the funded source account — it can't faucet to
+      // itself. Tell the truth and just refresh the (already large) balance.
+      await refreshBalance();
+      toast("Demo key is pre-funded — balance refreshed", "✓");
+    }
   } catch (e) { toast(e.message || "faucet failed", "✕", "#3a1414", "#ffd2d2"); }
 }
 

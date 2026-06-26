@@ -10,7 +10,8 @@ bid stays hidden forever** — while the whole thing remains verifiable on-chain
 
 Built for the [Stellar Hacks: Real-World ZK](https://dorahacks.io/hackathon/stellar-hacks-zk)
 hackathon. Two Circom/Groth16/BN254 circuits do the real work; a Soroban contract
-verifies the proofs on-chain and custodies real testnet USDC.
+verifies the proofs on-chain and custodies a testnet USDC-denominated asset
+(a project-issued mock SAC — see the note under "What's real").
 
 ---
 
@@ -86,7 +87,7 @@ Nothing here is namechecked. Each item, if removed, breaks the desk:
 | **BN254 scalar-field arithmetic** (P26) | the contract builds the public-input `Vec<Bn254Fr>` itself (binding) |
 | **Poseidon host function** (P25) | `poseidon_hash(a,b)` exposed on-chain; matches circomlib exactly — the commitment scheme is verifiable on-chain, not asserted |
 | **Soroban** | the whole desk: RFQ state, commit-set, escrow custody, settlement |
-| **USDC SAC** | real testnet USDC escrow; winner pays clearing to maker, losers refunded |
+| **USDC SAC** | testnet USDC-denominated SAC escrow (project-issued mock asset, not Circle's USDC); winner pays clearing to maker, losers refunded |
 | **Freighter / embedded key** | real signing of `post_rfq` / `commit_bid` / `settle` |
 
 The contract's **binding** property is the security crux: it never accepts a
@@ -99,9 +100,12 @@ spoofed identity, or a different bid set — any mismatch fails verification.
 
 ## What's real (not mocked)
 
-- **Real USDC escrow & settlement.** `commit_bid` pulls a good-faith escrow
-  (= `band_max`) from the bidder; `settle` pays the winner's clearing price to the
-  maker, refunds the surplus, and refunds every loser — all real testnet USDC.
+- **Real escrow & settlement (mock USDC asset).** `commit_bid` pulls a good-faith
+  escrow (= `band_max`) from the bidder; `settle` pays the winner's clearing price
+  to the maker, refunds the surplus, and refunds every loser. The custody mechanics
+  are real SAC transfers; the asset is a **project-issued testnet "USDC" SAC (mock
+  issuer), not Circle's canonical testnet USDC** — swapping to Circle's SAC is a
+  config + redeploy.
 - **Real proof-of-funds.** The escrow transfer must succeed, so the bidder
   provably holds ≥ `band_max` ≥ their hidden bid; the circuit binds `bid ≤ band_max`.
 - **Real on-chain verification.** Both verifiers return `true` for valid proofs

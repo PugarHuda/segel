@@ -1,14 +1,15 @@
 {
   "network": "testnet",
   "project": "Segel",
-  "description": "Segel — confidential sealed-bid OTC desk on Stellar. Two BN254 Groth16 ZK circuits (bidValidity, auctionResult) verified on-chain by Soroban; an otc desk contract with real USDC escrow custody, Vickrey settlement, and per-RFQ nullifiers.",
+  "description": "Segel — confidential sealed-bid OTC desk on Stellar. Two BN254 Groth16 ZK circuits (bidValidity, auctionResult) verified on-chain by Soroban; an otc desk contract with USDC-denominated SAC escrow custody (project-issued mock asset, not Circle's USDC), Vickrey settlement, and per-RFQ nullifiers.",
   "identity": {
     "alias": "corredor",
     "address": "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"
   },
   "token": {
     "address": "CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2",
-    "note": "real testnet USDC asset (SAC); each bidder's good-faith escrow (= band_max) is custodied here, winner pays clearing to maker, losers refunded"
+    "issuer": "GC7SWGHRQLMP4SW2AOBRSC2HFKVPNPHBH5A3PX3ZDVEJFMYKLWQ3SY3B",
+    "note": "testnet USDC-denominated SAC. Issuer is a PROJECT-CONTROLLED mock (GC7SWGHR…, 1 holder), NOT Circle's canonical testnet USDC (GBBD47IF…). Custody mechanics are real SAC transfers: each bidder's good-faith escrow (= band_max) is custodied here, winner pays clearing to maker, losers refunded."
   },
   "aspRoot": "1a67e1520bae4f57e592dfbeac003a36ae2e8011e9fc000e081ed1cd19c5ebff",
   "verifiers": {

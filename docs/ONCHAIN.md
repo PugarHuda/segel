@@ -23,7 +23,8 @@ bash scripts/wsl-deploy.sh    # deploys both verifiers + the otc desk (construct
 ```
 
 Constructor: `__constructor(admin, token, bid_verifier, auction_verifier, asp_root)`
-— `token` is the testnet USDC SAC; `asp_root` comes from `node scripts/asp.mjs`.
+— `token` is a testnet USDC-denominated SAC (project-issued mock issuer, not
+Circle's USDC); `asp_root` comes from `node scripts/asp.mjs`.
 
 ## Verify a proof on-chain
 

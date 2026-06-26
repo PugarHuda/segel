@@ -15,8 +15,17 @@ async function mustReject(name, circuit, input) {
   try {
     await snarkjs.groth16.fullProve(input, `${W}/${circuit}_js/${circuit}.wasm`, `${W}/${circuit}_final.zkey`);
     fail++; console.log("  ✗", name, "— UNSOUND: bad witness was accepted!");
-  } catch {
-    pass++; console.log("  ✓", name, "— rejected (constraint caught it)");
+  } catch (e) {
+    // A genuine soundness rejection fails during witness generation on a VIOLATED
+    // CONSTRAINT. A bare catch would also pass on a missing .wasm/.zkey, a malformed
+    // input shape, or any other crash — masking a broken test as a "rejection".
+    // So we require the error to look like a circom constraint failure.
+    const msg = String((e && e.message) || e);
+    if (/Assert Failed|Error in template|constraint|line:\s*\d+/i.test(msg)) {
+      pass++; console.log("  ✓", name, "— rejected (constraint caught it)");
+    } else {
+      fail++; console.log("  ✗", name, "— INCONCLUSIVE: rejected for a NON-constraint reason:", msg.slice(0, 140));
+    }
   }
 }
 

@@ -18,6 +18,10 @@ export const OTC = "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3";
 export const BID_VERIFIER = "CAL5XO2NPC2ZFVQSXX7HSS6ARQOX6GL24LCR5SZVEIKENOLN2HUOK7DK";
 export const AUCTION_VERIFIER = "CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJHOLGGJEBY";
 export const USDC_SAC = "CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2";
+// Testnet USDC-denominated Stellar Asset Contract. NOTE: the issuer below is a
+// PROJECT-CONTROLLED mock — not Circle's canonical testnet USDC
+// (GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5). The escrow/custody
+// mechanics are real; the asset is a stand-in for demo purposes.
 const USDC = new Sdk.Asset("USDC", "GC7SWGHRQLMP4SW2AOBRSC2HFKVPNPHBH5A3PX3ZDVEJFMYKLWQ3SY3B");
 
 // Throwaway testnet demo key (non-admin) — only signs demo txs. Public on purpose.
@@ -244,6 +248,31 @@ export async function poseidonHash(a, b) {
   if (!r.ok) throw new Error("poseidon_hash failed");
   const u8 = r.value;
   return "0x" + Array.from(u8).map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+// Live integration health — EVERY row is a real on-chain probe (RPC call, contract
+// simulation, or ledger-entry existence check), not a static badge. Returns
+// [label, status, ok] triples; ok=false renders red. Failures degrade gracefully.
+export async function healthCheck() {
+  const rows = [];
+  // 1. Soroban RPC actually reachable + healthy
+  try { const h = await server.getHealth(); const ok = h?.status === "healthy"; rows.push(["Soroban RPC", ok ? "healthy" : (h?.status || "reachable"), ok]); }
+  catch { rows.push(["Soroban RPC", "unreachable", false]); }
+  // 2. OTC desk responds and reports its live RFQ count
+  try { const c = await simulate(OTC, "rfq_count"); rows.push(["OTC desk", c.ok ? `live · ${Number(c.value)} RFQ` : "no response", c.ok]); }
+  catch { rows.push(["OTC desk", "no response", false]); }
+  // 3. Both verifier contracts are genuinely deployed on-chain (ledger entry exists)
+  for (const [name, id] of [["bidValidity verifier", BID_VERIFIER], ["auctionResult verifier", AUCTION_VERIFIER]]) {
+    try { const e = await server.getLedgerEntries(new Sdk.Contract(id).getFootprint()); const ok = !!(e.entries && e.entries.length); rows.push([name, ok ? "deployed" : "missing", ok]); }
+    catch { rows.push([name, "unreachable", false]); }
+  }
+  // 4. On-chain Poseidon host fn matches circomlib (live contract call)
+  try { const p = await poseidonHash(1, 2); const ok = p.toLowerCase().startsWith("0x115cc0f5"); rows.push(["Poseidon host fn", ok ? "matches circomlib" : "mismatch", ok]); }
+  catch { rows.push(["Poseidon host fn", "unreachable", false]); }
+  // 5. USDC SAC escrow held by the OTC contract (real balance read)
+  try { const b = await balanceOf(OTC); rows.push(["USDC SAC escrow", b === "0" ? "0 held (no open bids)" : `${b} stroops held`, true]); }
+  catch { rows.push(["USDC SAC escrow", "unreadable", false]); }
+  return rows;
 }
 
 export const txExplorer = (h) => `https://stellar.expert/explorer/testnet/tx/${h}`;
