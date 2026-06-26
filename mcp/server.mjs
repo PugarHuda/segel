@@ -10,7 +10,7 @@ import * as Sdk from "@stellar/stellar-sdk";
 
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-const OTC = "CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR";
+const OTC = "CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM";
 const SOURCE = "GBJSZAEYQW5GQVJV77KGBPIN246HALRBWZINOQXE7DZ4NNHRVCSZMHAQ";
 const server = new Sdk.rpc.Server(RPC);
 const u32 = (x) => Sdk.nativeToScVal(x, { type: "u32" });

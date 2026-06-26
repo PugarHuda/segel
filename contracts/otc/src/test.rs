@@ -20,6 +20,18 @@ impl MockVerifier {
     }
 }
 
+// Stub SEP-40 oracle returning a fixed XLM/USD mark (matches a real Reflector
+// reading at build time: 0.1765 USD, 14 decimals).
+#[contract]
+pub struct MockOracle;
+
+#[contractimpl]
+impl MockOracle {
+    pub fn lastprice(_e: Env, _asset: OracleAsset) -> Option<PriceData> {
+        Some(PriceData { price: 17650630646589, timestamp: 1782484500 })
+    }
+}
+
 fn b32(env: &Env, k: u8) -> BytesN<32> {
     BytesN::from_array(env, &[k; 32])
 }
@@ -50,11 +62,12 @@ fn setup(env: &Env) -> Ctx {
     let admin = Address::generate(env);
     let maker = Address::generate(env);
     let v = env.register(MockVerifier, ());
+    let oracle = env.register(MockOracle, ());
     let sac_obj = env.register_stellar_asset_contract_v2(admin.clone());
     let token_addr = sac_obj.address();
     let id = env.register(
         Otc,
-        (admin.clone(), token_addr.clone(), v.clone(), v.clone(), b32(env, 100)),
+        (admin.clone(), token_addr.clone(), v.clone(), v.clone(), b32(env, 100), oracle.clone()),
     );
     Ctx {
         otc: OtcClient::new(env, &id),
@@ -277,4 +290,14 @@ fn admin_can_rotate_verifiers_and_admin() {
     let new_admin = Address::generate(&env);
     c.otc.set_admin(&new_admin);
     assert_eq!(c.otc.admin(), new_admin);
+}
+
+// Reflector integration: mark_price() does a real cross-contract SEP-40 read.
+#[test]
+fn mark_price_reads_oracle() {
+    let env = Env::default();
+    let c = setup(&env);
+    let p = c.otc.mark_price(&symbol_short!("XLM")).unwrap();
+    assert_eq!(p.price, 17650630646589);
+    assert_eq!(p.timestamp, 1782484500);
 }

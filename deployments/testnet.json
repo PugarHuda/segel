@@ -31,29 +31,36 @@
     }
   },
   "otc": {
-    "contractId": "CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR",
-    "previousContractId": "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3",
+    "contractId": "CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM",
+    "previousContractIds": ["CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR", "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3"],
     "wasm": "contracts/otc/",
-    "constructor": ["admin", "token", "bid_verifier", "auction_verifier", "asp_root"],
-    "functions": ["post_rfq", "commit_bid", "settle", "cancel_expired", "set_verifiers", "set_admin", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "balance", "admin", "verifiers"],
+    "constructor": ["admin", "token", "bid_verifier", "auction_verifier", "asp_root", "oracle"],
+    "functions": ["post_rfq", "commit_bid", "settle", "cancel_expired", "set_verifiers", "set_admin", "set_oracle", "upgrade", "mark_price", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "balance", "admin", "verifiers", "oracle"],
+    "oracleIntegration": {
+      "provider": "Reflector (SEP-40)",
+      "feed": "External CEX & DEX prices (testnet)",
+      "contractId": "CCYOZJCOPG34LLQQ7N24YXBM7LL62R7ONMZ3G6WZAAYPB5OYKOMJRN63",
+      "usage": "mark_price(symbol) does a real cross-contract lastprice() read — live market mark (USD, 14 decimals) for XLM/USDC etc.; lets makers/takers sanity-check a sealed auction vs the market and is the basis for a future oracle-derived maker reserve",
+      "liveSample": "mark_price(XLM) -> ~0.176 USD, mark_price(USDC) -> ~1.001 USD (verified on-chain)"
+    },
     "security": {
       "binding": "the contract builds every verifier public-input vector itself from typed values it controls (authenticated bidder, RFQ band, recorded commitments) — a proof cannot be reused with different inputs",
       "proofOfFunds": "commit_bid pins availBal = band_max (the escrow) and then transfers that escrow from the bidder; the transfer must succeed, so the bidder provably holds >= band_max >= bid (the hidden bid is bound to escrowed funds)",
       "vickreyBinding": "settle builds the auction public inputs from the RECORDED commitments (padded to N=8 with Poseidon(0,0,0)), so the proof is over exactly the on-chain sealed set",
       "nullifier": "one bid per identity per RFQ (Sybil resistance), identity hidden",
-      "adminControls": "admin-gated set_verifiers (rotate a buggy verifier — previously immutable) and set_admin (hand over the role); instance-storage TTL is now extended on every state change so the contract config cannot expire",
-      "unitTests": "15/15 passing (contracts/otc/src/test.rs)"
+      "adminControls": "admin-gated set_verifiers (rotate a buggy verifier — previously immutable), set_admin (hand over the role), set_oracle (swap the price feed), and upgrade (in-place WASM upgrade, keeps the contract id); instance-storage TTL is extended on every state change so config cannot expire",
+      "unitTests": "16/16 passing (contracts/otc/src/test.rs)"
     }
   },
   "e2eLive": {
     "description": "Full sealed-bid OTC flow verified live on testnet (scripts/e2e-testnet.mjs): post RFQ -> 3 sealed bids with real bidValidity proofs -> Vickrey settle. Winner bid 4900, clearing price 4200 (second-highest); losing bids never revealed on-chain.",
-    "postRfq": "https://stellar.expert/explorer/testnet/tx/ade9c686bcd8f19bb0540f44cb8400f6596c5054768da73ff9d9f29319411bb2",
+    "postRfq": "https://stellar.expert/explorer/testnet/tx/32e2ca93cf03a751ae63eaab6191667a82f61112e937d9b4fd6467493088d767",
     "commitBids": [
-      "https://stellar.expert/explorer/testnet/tx/c640cc982a70c7cfb04fc24c903cf60d974db82e3b821854f7c02aa681f715c2",
-      "https://stellar.expert/explorer/testnet/tx/0ddb594ffd6159e48bc77a79d34f6f48f77f9f8b2ba8e39e71e5c8e9d5e949e7",
-      "https://stellar.expert/explorer/testnet/tx/bcbefc10e26c2ae63fc4d031b9142b2b41224a1f221f4debfcfa19060adf9ba5"
+      "https://stellar.expert/explorer/testnet/tx/68688b472b4b0b99fe963479f76019dd742554a0c9a72b64d07bf9f5bbddf8bc",
+      "https://stellar.expert/explorer/testnet/tx/03384fd250e44fb46daa788e49a2dc55687cd9f88536589226144d2f07e20ed3",
+      "https://stellar.expert/explorer/testnet/tx/e9689f95689fc6d095a989248f22229fcb458ad173eee7eda346ac10e3ca044e"
     ],
-    "settle": "https://stellar.expert/explorer/testnet/tx/96acfbf02c82e35a1c548c21196ed47e31d6c14aa565c622778a5a9a69963b93"
+    "settle": "https://stellar.expert/explorer/testnet/tx/98a5633fc15ba033d0bf5b25035cda7a585747b1543e31e4088b25c90340c871"
   },
   "circuits": {
     "system": "Groth16 over BN254",

@@ -246,10 +246,11 @@ function viewAudit() {
   const contracts = [
     ["OTC desk", chain.OTC], ["bidValidity verifier", chain.BID_VERIFIER],
     ["auctionResult verifier", chain.AUCTION_VERIFIER], ["USDC SAC (escrow)", chain.USDC_SAC],
+    ["Reflector oracle (SEP-40)", chain.ORACLE],
   ];
   const probing = S.health === null || S.health === "loading";
   const healthRows = probing
-    ? ["Soroban RPC", "OTC desk", "bidValidity verifier", "auctionResult verifier", "Poseidon host fn", "USDC SAC escrow"].map((n) => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px"><span style="color:#33384a">${n}</span><span style="color:#9aa0b2">checking…</span></div>`).join("")
+    ? ["Soroban RPC", "OTC desk", "bidValidity verifier", "auctionResult verifier", "Poseidon host fn", "USDC SAC escrow", "Reflector XLM mark"].map((n) => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px"><span style="color:#33384a">${n}</span><span style="color:#9aa0b2">checking…</span></div>`).join("")
     : S.health.map(([n, s, ok]) => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px"><span style="color:#33384a">${n}</span><span style="display:inline-flex;align-items:center;gap:6px;color:${ok ? "#2f9b6e" : "#b04a4a"}"><span style="width:14px;height:14px;border-radius:50%;background:${ok ? "#2f9b6e" : "#b04a4a"};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px">${ok ? "✓" : "✗"}</span>${esc(s)}</span></div>`).join("");
   const mcp = [["list_rfqs()", "open RFQs from on-chain state", "RFQ[]"], ["verify_settlement(rfq)", "recheck a settled RFQ on-chain", "{settled, clearing, winner}"], ["clearing_price(rfq)", "public clearing price", "number"], ["bid_count(rfq)", "sealed bid count", "number"]];
   return `<div>${header("SEGEL · AUDIT SURFACE", "Audit &amp; Integrations")}

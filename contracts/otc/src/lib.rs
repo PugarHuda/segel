@@ -57,6 +57,23 @@ pub struct Groth16Proof {
     pub c: Bn254G1Affine,
 }
 
+/// SEP-40 oracle asset selector — layout-identical to Reflector's `Asset`.
+#[contracttype]
+#[derive(Clone)]
+pub enum OracleAsset {
+    Stellar(Address),
+    Other(Symbol),
+}
+
+/// SEP-40 price record — layout-identical to Reflector's `PriceData`.
+/// `price` is scaled by 10^decimals() (14 on the Reflector feeds).
+#[contracttype]
+#[derive(Clone)]
+pub struct PriceData {
+    pub price: i128,
+    pub timestamp: u64,
+}
+
 #[contracttype]
 #[derive(Clone)]
 pub struct Rfq {
@@ -110,6 +127,7 @@ enum DataKey {
     AuctionVerifier,
     AspRoot,
     RfqCount,
+    Oracle,
     Rfq(u32),
     BidCount(u32),
     Bid(u32, u32),
@@ -129,6 +147,7 @@ impl Otc {
         bid_verifier: Address,
         auction_verifier: Address,
         asp_root: BytesN<32>,
+        oracle: Address,
     ) {
         let s = env.storage().instance();
         s.set(&DataKey::Admin, &admin);
@@ -136,6 +155,7 @@ impl Otc {
         s.set(&DataKey::BidVerifier, &bid_verifier);
         s.set(&DataKey::AuctionVerifier, &auction_verifier);
         s.set(&DataKey::AspRoot, &asp_root);
+        s.set(&DataKey::Oracle, &oracle);
         s.set(&DataKey::RfqCount, &0u32);
         Self::bump_instance(&env);
     }
@@ -158,6 +178,40 @@ impl Otc {
         env.storage().instance().set(&DataKey::Admin, &new_admin);
         Self::bump_instance(&env);
         env.events().publish((symbol_short!("setadmin"),), new_admin);
+    }
+
+    /// Admin-only: point the desk at a different SEP-40 oracle.
+    pub fn set_oracle(env: Env, oracle: Address) {
+        Self::require_admin(&env);
+        env.storage().instance().set(&DataKey::Oracle, &oracle);
+        Self::bump_instance(&env);
+        env.events().publish((symbol_short!("setoracle"),), oracle);
+    }
+
+    /// Admin-only: upgrade the contract WASM in place (keeps the same contract id,
+    /// so logic fixes no longer require a fresh deployment + id migration).
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        Self::require_admin(&env);
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+    }
+
+    /// Live market mark from the Reflector SEP-40 oracle: the USD price of `symbol`
+    /// (e.g. "XLM" or "USDC"), scaled by 10^14. Lets makers/takers sanity-check a
+    /// sealed auction against the real market, and is the basis for a future
+    /// oracle-derived maker reserve. Read-only cross-contract call; returns None if
+    /// no oracle is configured or the feed has no price for the symbol.
+    pub fn mark_price(env: Env, symbol: Symbol) -> Option<PriceData> {
+        let oracle: Address = env.storage().instance().get(&DataKey::Oracle)?;
+        let asset = OracleAsset::Other(symbol);
+        env.invoke_contract(
+            &oracle,
+            &Symbol::new(&env, "lastprice"),
+            vec![&env, asset.into_val(&env)],
+        )
+    }
+
+    pub fn oracle(env: Env) -> Address {
+        env.storage().instance().get(&DataKey::Oracle).unwrap()
     }
 
     /// Maker posts an RFQ. `band_max` doubles as the per-bidder good-faith escrow,

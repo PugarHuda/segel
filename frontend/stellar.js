@@ -14,10 +14,12 @@ const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
 
 // Live testnet deployment (deployments/testnet.json).
-export const OTC = "CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR";
+export const OTC = "CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM";
 export const BID_VERIFIER = "CAL5XO2NPC2ZFVQSXX7HSS6ARQOX6GL24LCR5SZVEIKENOLN2HUOK7DK";
 export const AUCTION_VERIFIER = "CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJHOLGGJEBY";
 export const USDC_SAC = "CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2";
+// Reflector SEP-40 oracle (testnet, External CEX & DEX feed) — read via OTC.mark_price.
+export const ORACLE = "CCYOZJCOPG34LLQQ7N24YXBM7LL62R7ONMZ3G6WZAAYPB5OYKOMJRN63";
 // Testnet USDC-denominated Stellar Asset Contract. NOTE: the issuer below is a
 // PROJECT-CONTROLLED mock — not Circle's canonical testnet USDC
 // (GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5). The escrow/custody
@@ -250,6 +252,14 @@ export async function poseidonHash(a, b) {
   return "0x" + Array.from(u8).map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
+// Live Reflector mark via the OTC contract's mark_price(symbol) — a real
+// cross-contract SEP-40 lastprice() read. Returns USD price (number) or null.
+export async function markPrice(symbol) {
+  const r = await simulate(OTC, "mark_price", Sdk.nativeToScVal(symbol, { type: "symbol" }));
+  if (!r.ok || !r.value) return null;
+  return Number(r.value.price) / 1e14; // Reflector feeds use 14 decimals
+}
+
 // Live integration health — EVERY row is a real on-chain probe (RPC call, contract
 // simulation, or ledger-entry existence check), not a static badge. Returns
 // [label, status, ok] triples; ok=false renders red. Failures degrade gracefully.
@@ -272,6 +282,9 @@ export async function healthCheck() {
   // 5. USDC SAC escrow held by the OTC contract (real balance read)
   try { const b = await balanceOf(OTC); rows.push(["USDC SAC escrow", b === "0" ? "0 held (no open bids)" : `${b} stroops held`, true]); }
   catch { rows.push(["USDC SAC escrow", "unreadable", false]); }
+  // 6. Reflector oracle live mark — real cross-contract read (OTC.mark_price -> Reflector)
+  try { const x = await markPrice("XLM"); rows.push(["Reflector XLM mark", x != null ? `$${x.toFixed(4)}` : "no price", x != null]); }
+  catch { rows.push(["Reflector oracle", "unreachable", false]); }
   return rows;
 }
 

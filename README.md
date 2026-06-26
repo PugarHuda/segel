@@ -34,7 +34,7 @@ verifies the proofs on-chain and custodies a testnet USDC-denominated asset
 
   | Contract | Role | Verified |
   |---|---|---|
-  | [otc desk](https://stellar.expert/explorer/testnet/contract/CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR) | RFQ, sealed-bid commit-set, USDC escrow, Vickrey settle, refunds | [post](https://stellar.expert/explorer/testnet/tx/ade9c686bcd8f19bb0540f44cb8400f6596c5054768da73ff9d9f29319411bb2) · [bid](https://stellar.expert/explorer/testnet/tx/c640cc982a70c7cfb04fc24c903cf60d974db82e3b821854f7c02aa681f715c2) · [settle](https://stellar.expert/explorer/testnet/tx/96acfbf02c82e35a1c548c21196ed47e31d6c14aa565c622778a5a9a69963b93) live |
+  | [otc desk](https://stellar.expert/explorer/testnet/contract/CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM) | RFQ, sealed-bid commit-set, USDC escrow, Vickrey settle, refunds | [post](https://stellar.expert/explorer/testnet/tx/32e2ca93cf03a751ae63eaab6191667a82f61112e937d9b4fd6467493088d767) · [bid](https://stellar.expert/explorer/testnet/tx/68688b472b4b0b99fe963479f76019dd742554a0c9a72b64d07bf9f5bbddf8bc) · [settle](https://stellar.expert/explorer/testnet/tx/98a5633fc15ba033d0bf5b25035cda7a585747b1543e31e4088b25c90340c871) live |
   | [bidValidity verifier](https://stellar.expert/explorer/testnet/contract/CAL5XO2NPC2ZFVQSXX7HSS6ARQOX6GL24LCR5SZVEIKENOLN2HUOK7DK) | verifies sealed-bid validity | `verify` → [`true`](https://stellar.expert/explorer/testnet/tx/8994686dc5d787c63c3690db810aec2653dae9dbf7a3b6c5818fe151a5624862) |
   | [auctionResult verifier](https://stellar.expert/explorer/testnet/contract/CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJHOLGGJEBY) | verifies Vickrey settlement | `verify` → `true`; tampered → `InvalidProof` |
 
@@ -88,6 +88,7 @@ Nothing here is namechecked. Each item, if removed, breaks the desk:
 | **Poseidon host function** (P25) | `poseidon_hash(a,b)` exposed on-chain; matches circomlib exactly — the commitment scheme is verifiable on-chain, not asserted |
 | **Soroban** | the whole desk: RFQ state, commit-set, escrow custody, settlement |
 | **USDC SAC** | testnet USDC-denominated SAC escrow (project-issued mock asset, not Circle's USDC); winner pays clearing to maker, losers refunded |
+| **Reflector oracle (SEP-40)** | `mark_price(symbol)` does a real cross-contract `lastprice()` read of the Reflector testnet feed — a live market mark (XLM/USDC USD price) to sanity-check the sealed auction against the market; basis for a future oracle-derived maker reserve |
 | **Freighter / embedded key** | real signing of `post_rfq` / `commit_bid` / `settle` |
 
 The contract's **binding** property is the security crux: it never accepts a
@@ -118,7 +119,10 @@ spoofed identity, or a different bid set — any mismatch fails verification.
   allow-list.
 - **On-chain Poseidon (proven).** `poseidon_hash(1,2)` returns
   `0x115cc0f5…4417189a`, exactly circomlibjs `poseidon([1,2])` (see the Audit tab).
-- **15/15 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
+- **Live Reflector oracle (real cross-contract).** `mark_price("XLM")` invokes the
+  Reflector SEP-40 testnet feed on-chain and returns the live USD mark (~$0.176);
+  `mark_price("USDC")` ≈ $1.001. Surfaced live in the Audit tab.
+- **16/16 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
   (`scripts/e2e-testnet.mjs`): post → 3 sealed bids → Vickrey settle on testnet.
 
 ## Still honestly simplified
@@ -174,7 +178,7 @@ node scripts/e2e-testnet.mjs
 
 **On-chain** (contracts already deployed — IDs above):
 - Build a verifier WASM: `bash scripts/wsl-build-verifier.sh circuits/build/<name>_vk.json <out>.wasm`
-- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 15/15)
+- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 16/16)
 - Deploy: `bash scripts/wsl-deploy.sh`
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`

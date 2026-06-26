@@ -29,7 +29,7 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
 
 ## Tested
 
-- **15/15 unit tests** (`contracts/otc/src/test.rs`): escrow lock, duplicate
+- **16/16 unit tests** (`contracts/otc/src/test.rs`): escrow lock, duplicate
   nullifier, deadline, capacity (N=8), winner payout + refunds, bad clearing,
   double-settle, no-bids, cancel-before-deadline, unknown RFQ, on-chain Poseidon.
 - **On-chain:** both verifiers return `true` for valid proofs; a tampered
