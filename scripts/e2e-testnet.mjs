@@ -12,7 +12,7 @@ const keccak256 = sha3.keccak256;
 const FIELD_R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 const RPC = "https://soroban-testnet.stellar.org";
 const PASSPHRASE = "Test SDF Network ; September 2015";
-const OTC = "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3";
+const OTC = "CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR";
 const USDC_SAC = "CAT6F6HX4B2DBPSS4SIZ257IYSMKDKRJSEGIQTKBDS7LOFRMDXVGFVA2";
 const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 
@@ -30,16 +30,21 @@ const g2 = (p) => fe(p[0][1]) + fe(p[0][0]) + fe(p[1][1]) + fe(p[1][0]);
 const scProof = (p) => ({ a: buf(g1(p.pi_a)), b: buf(g2(p.pi_b)), c: buf(g1(p.pi_c)) });
 const tx = (h) => `https://stellar.expert/explorer/testnet/tx/${h}`;
 
-// testnet RPC occasionally bounces a submit with TRY_AGAIN_LATER (congestion).
-// Retry the send with backoff; the seq number isn't consumed on a rejected send.
-async function send(at, label) {
+// testnet RPC occasionally bounces a submit (TRY_AGAIN_LATER on congestion).
+// `build` is a thunk that RE-ASSEMBLES the tx (fresh simulation + time bounds) on
+// every attempt — resubmitting the same signed tx would expire its 30s window and
+// fail txTooLate, so we rebuild instead. A rejected submit never consumes the seq.
+async function send(build, label) {
   for (let attempt = 1; ; attempt++) {
-    try { return await at.signAndSend(); }
-    catch (e) {
+    try {
+      const at = await build();
+      const res = await at.signAndSend();
+      return { res, at };
+    } catch (e) {
       const msg = String(e?.message || e) + " " + JSON.stringify(e?.status ?? "");
-      if (attempt <= 5 && /TRY_AGAIN_LATER|TIMEOUT|ERROR|timed? ?out|50\d|429/i.test(msg)) {
-        const wait = 2000 * attempt;
-        console.log(`   …${label} transient send error (${attempt}/5), retrying in ${wait}ms`);
+      if (attempt <= 6 && /TRY_AGAIN_LATER|TIMEOUT|txTooLate|ERROR|timed? ?out|50\d|429/i.test(msg)) {
+        const wait = 1500 * attempt;
+        console.log(`   …${label} transient send error (${attempt}/6), rebuilding + retrying in ${wait}ms`);
         await new Promise((r) => setTimeout(r, wait));
         continue;
       }
@@ -82,11 +87,10 @@ async function main() {
   // 1. post RFQ
   const bandMin = 3000n, bandMax = 5000n;
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
-  const postAt = await c.post_rfq({
+  const { res: postRes, at: postAt } = await send(() => c.post_rfq({
     maker: ADDR, pair: "XLMUSDC", side: "SELL", mode: 1,
     band_min: bandMin, band_max: bandMax, deadline,
-  });
-  const postRes = await send(postAt, "post_rfq");
+  }), "post_rfq");
   const rfqId = postAt.result;
   console.log(`\n[1] post_rfq -> RFQ #${rfqId}  ${tx(postRes.sendTransactionResponse?.hash)}`);
 
@@ -105,8 +109,7 @@ async function main() {
       pathElements: m.pathElements.map((x) => x.toString()), leafIndex: String(m.leafIndex),
     };
     const { proof } = await snarkjs.groth16.fullProve(input, `${W}/bidValidity_js/bidValidity.wasm`, `${W}/bidValidity_final.zkey`);
-    const at = await c.commit_bid({ from: ADDR, rfq_id: Number(rfqId), commit: buf32(commit), nullifier: buf32(nullifier), proof: scProof(proof) });
-    const r = await send(at, `commit_bid ${i + 1}`);
+    const { res: r } = await send(() => c.commit_bid({ from: ADDR, rfq_id: Number(rfqId), commit: buf32(commit), nullifier: buf32(nullifier), proof: scProof(proof) }), `commit_bid ${i + 1}`);
     openings.push({ bid: bid.toString(), nonce, bidderField, commit });
     console.log(`[2.${i + 1}] commit_bid (amount hidden) -> ${tx(r.sendTransactionResponse?.hash)}`);
   }
@@ -128,8 +131,7 @@ async function main() {
     winnerIdx: String(wi), runnerIdx: String(ri),
   };
   const { proof } = await snarkjs.groth16.fullProve(input, `${W}/auctionResult_js/auctionResult.wasm`, `${W}/auctionResult_final.zkey`);
-  const at = await c.settle({ rfq_id: Number(rfqId), proof: scProof(proof), winner: ADDR, clearing: bid[ri] });
-  const r = await send(at, "settle");
+  const { res: r } = await send(() => c.settle({ rfq_id: Number(rfqId), proof: scProof(proof), winner: ADDR, clearing: bid[ri] }), "settle");
   console.log(`\n[3] settle (Vickrey) winner=#${wi} clearing=${bid[ri]} (losers hidden) -> ${tx(r.sendTransactionResponse?.hash)}`);
   console.log("\n✅ Full sealed-bid OTC flow verified live on Stellar testnet.");
 }

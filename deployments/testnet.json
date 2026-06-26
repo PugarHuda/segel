@@ -31,27 +31,29 @@
     }
   },
   "otc": {
-    "contractId": "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3",
+    "contractId": "CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR",
+    "previousContractId": "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3",
     "wasm": "contracts/otc/",
     "constructor": ["admin", "token", "bid_verifier", "auction_verifier", "asp_root"],
-    "functions": ["post_rfq", "commit_bid", "settle", "cancel_expired", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "balance"],
+    "functions": ["post_rfq", "commit_bid", "settle", "cancel_expired", "set_verifiers", "set_admin", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "balance", "admin", "verifiers"],
     "security": {
       "binding": "the contract builds every verifier public-input vector itself from typed values it controls (authenticated bidder, RFQ band, recorded commitments) — a proof cannot be reused with different inputs",
       "proofOfFunds": "commit_bid pins availBal = band_max (the escrow) and then transfers that escrow from the bidder; the transfer must succeed, so the bidder provably holds >= band_max >= bid (the hidden bid is bound to escrowed funds)",
       "vickreyBinding": "settle builds the auction public inputs from the RECORDED commitments (padded to N=8 with Poseidon(0,0,0)), so the proof is over exactly the on-chain sealed set",
       "nullifier": "one bid per identity per RFQ (Sybil resistance), identity hidden",
-      "unitTests": "14/14 passing (contracts/otc/src/test.rs)"
+      "adminControls": "admin-gated set_verifiers (rotate a buggy verifier — previously immutable) and set_admin (hand over the role); instance-storage TTL is now extended on every state change so the contract config cannot expire",
+      "unitTests": "15/15 passing (contracts/otc/src/test.rs)"
     }
   },
   "e2eLive": {
     "description": "Full sealed-bid OTC flow verified live on testnet (scripts/e2e-testnet.mjs): post RFQ -> 3 sealed bids with real bidValidity proofs -> Vickrey settle. Winner bid 4900, clearing price 4200 (second-highest); losing bids never revealed on-chain.",
-    "postRfq": "https://stellar.expert/explorer/testnet/tx/9e37218f4a7411ac4226cd3883c02af0f9dd0b83ef36f766c03523837e001c55",
+    "postRfq": "https://stellar.expert/explorer/testnet/tx/ade9c686bcd8f19bb0540f44cb8400f6596c5054768da73ff9d9f29319411bb2",
     "commitBids": [
-      "https://stellar.expert/explorer/testnet/tx/f38279e66bfa7e968f7df82791a98d4857a975570823cbf30aabf4efd79351b8",
-      "https://stellar.expert/explorer/testnet/tx/c565bf661023983374f7286f66053283b10af66733fe54e13a8e72baff22dfae",
-      "https://stellar.expert/explorer/testnet/tx/1c20f8b85187662660b8abae1550e53f9ca4ae6f40681d23d85de8f7b7b50848"
+      "https://stellar.expert/explorer/testnet/tx/c640cc982a70c7cfb04fc24c903cf60d974db82e3b821854f7c02aa681f715c2",
+      "https://stellar.expert/explorer/testnet/tx/0ddb594ffd6159e48bc77a79d34f6f48f77f9f8b2ba8e39e71e5c8e9d5e949e7",
+      "https://stellar.expert/explorer/testnet/tx/bcbefc10e26c2ae63fc4d031b9142b2b41224a1f221f4debfcfa19060adf9ba5"
     ],
-    "settle": "https://stellar.expert/explorer/testnet/tx/201ed29f3150113b7947fd55e653327c1a3d8c8ba3f716e46271b766e6f84d03"
+    "settle": "https://stellar.expert/explorer/testnet/tx/96acfbf02c82e35a1c548c21196ed47e31d6c14aa565c622778a5a9a69963b93"
   },
   "circuits": {
     "system": "Groth16 over BN254",

@@ -41,6 +41,8 @@ struct Ctx {
     token: TokenClient<'static>,
     sac: StellarAssetClient<'static>,
     maker: Address,
+    admin: Address,
+    verifier: Address,
 }
 
 fn setup(env: &Env) -> Ctx {
@@ -52,13 +54,15 @@ fn setup(env: &Env) -> Ctx {
     let token_addr = sac_obj.address();
     let id = env.register(
         Otc,
-        (admin, token_addr.clone(), v.clone(), v.clone(), b32(env, 100)),
+        (admin.clone(), token_addr.clone(), v.clone(), v.clone(), b32(env, 100)),
     );
     Ctx {
         otc: OtcClient::new(env, &id),
         token: TokenClient::new(env, &token_addr),
         sac: StellarAssetClient::new(env, &token_addr),
         maker,
+        admin,
+        verifier: v,
     }
 }
 
@@ -250,4 +254,27 @@ fn unknown_rfq_rejected() {
     let env = Env::default();
     let c = setup(&env);
     c.otc.get_rfq_view(&99);
+}
+
+// B1: the admin can rotate the (previously immutable) verifiers and hand over the
+// admin role, so a buggy verifier can be replaced instead of bricking the desk.
+#[test]
+fn admin_can_rotate_verifiers_and_admin() {
+    let env = Env::default();
+    let c = setup(&env);
+    assert_eq!(c.otc.admin(), c.admin);
+    let (vb, va) = c.otc.verifiers();
+    assert_eq!(vb, c.verifier);
+    assert_eq!(va, c.verifier);
+
+    let nb = Address::generate(&env);
+    let na = Address::generate(&env);
+    c.otc.set_verifiers(&nb, &na);
+    let (vb2, va2) = c.otc.verifiers();
+    assert_eq!(vb2, nb);
+    assert_eq!(va2, na);
+
+    let new_admin = Address::generate(&env);
+    c.otc.set_admin(&new_admin);
+    assert_eq!(c.otc.admin(), new_admin);
 }

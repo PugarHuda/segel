@@ -14,8 +14,8 @@
 //! **Binding (the key security property).** The contract never accepts a
 //! pre-built `Vec<Bn254Fr>`. For each proof it *builds* the public-input vector
 //! itself, in circuit order, from typed values it controls — the bidder it
-//! authenticated, the bidder's real on-chain balance, the RFQ's band, and the
-//! commitments it actually recorded. A caller cannot present a valid proof while
+//! authenticated, the RFQ's band (which also pins the proof-of-funds input), and
+//! the commitments it actually recorded. A caller cannot present a valid proof while
 //! bidding a different amount, spoofing funds, or settling over a different bid
 //! set: any mismatch changes the public inputs and verification fails.
 
@@ -137,6 +137,27 @@ impl Otc {
         s.set(&DataKey::AuctionVerifier, &auction_verifier);
         s.set(&DataKey::AspRoot, &asp_root);
         s.set(&DataKey::RfqCount, &0u32);
+        Self::bump_instance(&env);
+    }
+
+    /// Admin-only: rotate the verifier contracts (e.g. replace a buggy verifier or
+    /// migrate to an upgraded circuit). Without this the verifiers were immutable —
+    /// a bad verifier could never be fixed. Guarded by the stored admin's auth.
+    pub fn set_verifiers(env: Env, bid_verifier: Address, auction_verifier: Address) {
+        Self::require_admin(&env);
+        let s = env.storage().instance();
+        s.set(&DataKey::BidVerifier, &bid_verifier);
+        s.set(&DataKey::AuctionVerifier, &auction_verifier);
+        Self::bump_instance(&env);
+        env.events().publish((symbol_short!("setverif"),), (bid_verifier, auction_verifier));
+    }
+
+    /// Admin-only: hand the admin role to a new address (e.g. a multisig).
+    pub fn set_admin(env: Env, new_admin: Address) {
+        Self::require_admin(&env);
+        env.storage().instance().set(&DataKey::Admin, &new_admin);
+        Self::bump_instance(&env);
+        env.events().publish((symbol_short!("setadmin"),), new_admin);
     }
 
     /// Maker posts an RFQ. `band_max` doubles as the per-bidder good-faith escrow,
@@ -169,6 +190,7 @@ impl Otc {
         env.storage().persistent().set(&DataKey::Rfq(id), &rfq);
         env.storage().persistent().set(&DataKey::BidCount(id), &0u32);
         env.storage().instance().set(&DataKey::RfqCount, &(id + 1));
+        Self::bump_instance(&env);
         Self::bump(&env, &DataKey::Rfq(id));
         env.events().publish((symbol_short!("post"), id), rfq.maker);
         id
@@ -176,9 +198,10 @@ impl Otc {
 
     /// Seal a bid: verify the `bidValidity` proof, record the commitment, and lock
     /// the good-faith escrow. The contract pins the proof's public inputs itself —
-    /// notably `availBal` is the bidder's REAL on-chain balance, so the hidden bid
-    /// is bound to real funds (proof-of-funds), and `bidder` is the authenticated
-    /// account, so the commitment can't be forged for someone else.
+    /// `availBal` is pinned to `band_max` and the escrow transfer below MUST
+    /// succeed, so the hidden bid is bound to real funds (proof-of-funds); `bidder`
+    /// is the authenticated account, so the commitment can't be forged for someone
+    /// else.
     pub fn commit_bid(
         env: Env,
         from: Address,
@@ -236,6 +259,7 @@ impl Otc {
         let entry = BidEntry { commit: commit.clone(), bidder: from.clone() };
         env.storage().persistent().set(&DataKey::Bid(rfq_id, n), &entry);
         env.storage().persistent().set(&DataKey::BidCount(rfq_id), &(n + 1));
+        Self::bump_instance(&env);
         Self::bump(&env, &DataKey::Bid(rfq_id, n));
         Self::bump(&env, &DataKey::Nullifier(rfq_id, nullifier.clone()));
         env.events().publish((symbol_short!("bid"), rfq_id), (commit, n));
@@ -325,6 +349,7 @@ impl Otc {
             &DataKey::Settled(rfq_id),
             &Settlement { winner: winner.clone(), clearing },
         );
+        Self::bump_instance(&env);
         Self::bump(&env, &DataKey::Settled(rfq_id));
         env.events().publish((symbol_short!("settle"), rfq_id), (winner, clearing));
     }
@@ -350,6 +375,7 @@ impl Otc {
         }
         rfq.status = ST_CANCELLED;
         env.storage().persistent().set(&DataKey::Rfq(rfq_id), &rfq);
+        Self::bump_instance(&env);
         env.events().publish((symbol_short!("cancel"), rfq_id), count);
     }
 
@@ -391,6 +417,14 @@ impl Otc {
     pub fn balance(env: Env) -> i128 {
         Self::token(&env).balance(&env.current_contract_address())
     }
+    pub fn admin(env: Env) -> Address {
+        env.storage().instance().get(&DataKey::Admin).unwrap()
+    }
+    /// Currently wired verifier contracts (bid, auction).
+    pub fn verifiers(env: Env) -> (Address, Address) {
+        let s = env.storage().instance();
+        (s.get(&DataKey::BidVerifier).unwrap(), s.get(&DataKey::AuctionVerifier).unwrap())
+    }
 
     // ---------- internals ----------
     fn get_rfq(env: &Env, id: u32) -> Rfq {
@@ -426,6 +460,16 @@ impl Otc {
     }
     fn bump(env: &Env, key: &DataKey) {
         env.storage().persistent().extend_ttl(key, TTL_THRESHOLD, TTL_EXTEND);
+    }
+    /// Extend the instance TTL so the contract's config (admin, token, verifiers,
+    /// asp_root, rfq_count) never expires while the desk is in use. Previously the
+    /// instance was never bumped — on a live network it could expire and brick.
+    fn bump_instance(env: &Env) {
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND);
+    }
+    fn require_admin(env: &Env) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
     }
     fn verify(env: &Env, which: DataKey, proof: &Groth16Proof, public_inputs: &Vec<Bn254Fr>) {
         let verifier: Address = env.storage().instance().get(&which).unwrap();

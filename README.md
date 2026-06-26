@@ -34,7 +34,7 @@ verifies the proofs on-chain and custodies a testnet USDC-denominated asset
 
   | Contract | Role | Verified |
   |---|---|---|
-  | [otc desk](https://stellar.expert/explorer/testnet/contract/CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3) | RFQ, sealed-bid commit-set, USDC escrow, Vickrey settle, refunds | [post](https://stellar.expert/explorer/testnet/tx/9e37218f4a7411ac4226cd3883c02af0f9dd0b83ef36f766c03523837e001c55) · [bid](https://stellar.expert/explorer/testnet/tx/f38279e66bfa7e968f7df82791a98d4857a975570823cbf30aabf4efd79351b8) · [settle](https://stellar.expert/explorer/testnet/tx/201ed29f3150113b7947fd55e653327c1a3d8c8ba3f716e46271b766e6f84d03) live |
+  | [otc desk](https://stellar.expert/explorer/testnet/contract/CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR) | RFQ, sealed-bid commit-set, USDC escrow, Vickrey settle, refunds | [post](https://stellar.expert/explorer/testnet/tx/ade9c686bcd8f19bb0540f44cb8400f6596c5054768da73ff9d9f29319411bb2) · [bid](https://stellar.expert/explorer/testnet/tx/c640cc982a70c7cfb04fc24c903cf60d974db82e3b821854f7c02aa681f715c2) · [settle](https://stellar.expert/explorer/testnet/tx/96acfbf02c82e35a1c548c21196ed47e31d6c14aa565c622778a5a9a69963b93) live |
   | [bidValidity verifier](https://stellar.expert/explorer/testnet/contract/CAL5XO2NPC2ZFVQSXX7HSS6ARQOX6GL24LCR5SZVEIKENOLN2HUOK7DK) | verifies sealed-bid validity | `verify` → [`true`](https://stellar.expert/explorer/testnet/tx/8994686dc5d787c63c3690db810aec2653dae9dbf7a3b6c5818fe151a5624862) |
   | [auctionResult verifier](https://stellar.expert/explorer/testnet/contract/CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJHOLGGJEBY) | verifies Vickrey settlement | `verify` → `true`; tampered → `InvalidProof` |
 
@@ -118,7 +118,7 @@ spoofed identity, or a different bid set — any mismatch fails verification.
   allow-list.
 - **On-chain Poseidon (proven).** `poseidon_hash(1,2)` returns
   `0x115cc0f5…4417189a`, exactly circomlibjs `poseidon([1,2])` (see the Audit tab).
-- **14/14 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
+- **15/15 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
   (`scripts/e2e-testnet.mjs`): post → 3 sealed bids → Vickrey settle on testnet.
 
 ## Still honestly simplified
@@ -174,7 +174,7 @@ node scripts/e2e-testnet.mjs
 
 **On-chain** (contracts already deployed — IDs above):
 - Build a verifier WASM: `bash scripts/wsl-build-verifier.sh circuits/build/<name>_vk.json <out>.wasm`
-- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 14/14)
+- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 15/15)
 - Deploy: `bash scripts/wsl-deploy.sh`
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`
