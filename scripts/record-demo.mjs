@@ -7,7 +7,7 @@ import puppeteer from "puppeteer-core";
 
 const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const FFMPEG = "C:\\Hackathons\\Hackathon Stellar Real World ZK\\tools\\bin\\ffmpeg.exe";
-const FRAMES = "C:\\Users\\pc\\AppData\\Local\\Temp\\claude\\C--Hackathons-Hackathon-Stellar-Real-World-ZK-V2\\1ab0f0ce-d218-4657-b701-0478a752fcef\\scratchpad\\frames";
+const FRAMES = process.env.TEMP + "\\segel-demo-frames";
 const OUT = "frontend/segel-demo.mp4";
 const PORT = 8131;
 const base = `http://localhost:${PORT}`;

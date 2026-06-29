@@ -86,7 +86,9 @@ try {
     const m = await innerText(page);
     ok(/Poseidon\(bid, nonce, addr\)/.test(m), "commitment scheme shown in modal");
     ok(/range proof will pass|in band/i.test(m), "default mid-band amount marked valid");
-    await page.click('[data-act="closemodal"]');
+    ok(/3\.00|4\.00|5\.00/.test(m), "bid modal shows USDC band (e.g. 3.00–5.00)");
+    await page.click('button[data-act="closemodal"]'); // the × button (backdrop div has same attr but is covered)
+    await page.waitForFunction(() => !/SEAL A BID/.test(document.body.innerText), { timeout: 5000 }).catch(() => {});
     ok(!/SEAL A BID/.test(await innerText(page)), "modal closes");
   } else {
     ok(true, "no open RFQ to bid on (skipped) — none currently OPEN on-chain");

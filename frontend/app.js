@@ -10,7 +10,8 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const short = (a) => (a ? a.slice(0, 4) + "…" + a.slice(-4) : "—");
 const fmt = (n) => Number(n).toLocaleString("en-US");
-const usd = (stroops) => Number(chain.toUsdc(stroops)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); // stroops -> "1,234.56"
+// stroops -> "1,234.56"; sub-cent legacy values keep their real digits (no dishonest 0.00)
+const usd = (stroops) => Number(chain.toUsdc(stroops)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 7 });
 
 const TOK = {
   XLM: { bg: "#e6ecfb", fg: "#3a4a8a" }, USDC: { bg: "#e6f5ee", fg: "#2f9b6e" },
