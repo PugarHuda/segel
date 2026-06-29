@@ -41,15 +41,17 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
 
 ## Tested
 
-- **20/20 unit tests** (`contracts/otc/src/test.rs`): escrow lock, duplicate
+- **22/22 unit tests** (`contracts/otc/src/test.rs`): escrow lock, duplicate
   nullifier, deadline, capacity (N=8), winner payout + refunds, bad clearing,
   double-settle, no-bids, cancel-before-deadline, unknown RFQ, on-chain Poseidon,
-  the `band_min` reserve (single-bid clears rejected), and the claimable-refund
+  the `band_min` reserve (single-bid clears rejected), the claimable-refund
   fallback (a blocked refund is credited, then `claim()`-ed once the bidder can
-  receive again).
+  receive again), and DvP delivery (winner receives the sell-side lot at settle /
+  maker gets it back on cancel).
 - **On-chain:** both verifiers return `true` for valid proofs; a tampered
   clearing-price public input is rejected (`Error(Contract,#0)`).
-- **Live e2e** (`scripts/e2e-testnet.mjs`): post → 3 sealed bids → Vickrey settle.
+- **Live e2e** (`scripts/e2e-testnet.mjs`): post a 20 XLM lot → 3 sealed bids →
+  Vickrey settle with delivery (desk XLM balance proven to go 0→20→0).
 
 ## Known limits (honest)
 
@@ -59,8 +61,10 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
 - **Demo identity.** In the no-wallet demo one key plays maker + several bidders
   via distinct ZK identities; the ASP allow-list is 16 deterministic test secrets,
   not real KYC.
-- **Single-asset settlement.** The trade settles as the winner's USDC payment to
-  the maker; a two-asset atomic DvP swap is future work.
+- **DvP delivery is a hard transfer.** Unlike loser refunds (non-reverting +
+  claimable fallback), `settle` delivers the lot to the winner with a hard
+  transfer — a winner who can't receive only hurts themselves, so it's not a
+  griefing vector. The leg key is cleared on delivery/refund (no double-delivery).
 - **Trusted setup.** phase-1 is a local Powers-of-Tau (2^14); production needs the
   Hermez ceremony + multi-party phase-2.
 - **Early settle.** `settle` is gated on maker auth + status, *not* the deadline, so

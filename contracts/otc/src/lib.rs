@@ -101,6 +101,15 @@ pub struct Settlement {
     pub clearing: i128,
 }
 
+/// The sell-side leg a maker escrows up front (delivery-vs-payment). Present only
+/// for RFQs posted via `post_rfq_dvp`; absent for plain quote-only auctions.
+#[contracttype]
+#[derive(Clone)]
+pub struct BaseLeg {
+    pub token: Address,
+    pub amount: i128,
+}
+
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -135,6 +144,7 @@ enum DataKey {
     Nullifier(u32, BytesN<32>),
     Settled(u32),
     Claimable(u32, Address),
+    Base(u32),
 }
 
 #[contract]
@@ -242,27 +252,44 @@ impl Otc {
         band_max: i128,
         deadline: u64,
     ) -> u32 {
-        maker.require_auth();
-        if band_min <= 0 || band_max <= band_min || band_max >= (1i128 << 64) {
+        Self::create_rfq(&env, maker, pair, side, mode, band_min, band_max, deadline)
+    }
+
+    /// Post an RFQ with a real delivery-vs-payment second leg: the maker escrows
+    /// `base_amount` of `base_token` (the asset being sold) up front. At `settle` the
+    /// winner receives that lot atomically against paying the clearing price; on
+    /// `cancel_expired` it returns to the maker. A genuine two-asset OTC swap rather
+    /// than a one-sided payment. `base_amount == 0` behaves like a plain `post_rfq`.
+    pub fn post_rfq_dvp(
+        env: Env,
+        maker: Address,
+        pair: Symbol,
+        side: Symbol,
+        mode: u32,
+        band_min: i128,
+        band_max: i128,
+        deadline: u64,
+        base_token: Address,
+        base_amount: i128,
+    ) -> u32 {
+        if base_amount < 0 {
             soroban_sdk::panic_with_error!(&env, OtcError::InvalidAmount);
         }
-        let id: u32 = env.storage().instance().get(&DataKey::RfqCount).unwrap_or(0);
-        let rfq = Rfq {
-            maker,
-            pair,
-            side,
-            mode,
-            band_min,
-            band_max,
-            deadline,
-            status: ST_OPEN,
-        };
-        env.storage().persistent().set(&DataKey::Rfq(id), &rfq);
-        env.storage().persistent().set(&DataKey::BidCount(id), &0u32);
-        env.storage().instance().set(&DataKey::RfqCount, &(id + 1));
-        Self::bump_instance(&env);
-        Self::bump(&env, &DataKey::Rfq(id));
-        env.events().publish((symbol_short!("post"), id), rfq.maker);
+        let id = Self::create_rfq(&env, maker.clone(), pair, side, mode, band_min, band_max, deadline);
+        if base_amount > 0 {
+            // Pull the sell-side lot into escrow (maker authed via create_rfq).
+            TokenClient::new(&env, &base_token).transfer(
+                &maker,
+                &env.current_contract_address(),
+                &base_amount,
+            );
+            env.storage().persistent().set(
+                &DataKey::Base(id),
+                &BaseLeg { token: base_token.clone(), amount: base_amount },
+            );
+            Self::bump(&env, &DataKey::Base(id));
+            env.events().publish((symbol_short!("baseleg"), id), (base_token, base_amount));
+        }
         id
     }
 
@@ -420,6 +447,14 @@ impl Otc {
         if clearing > 0 {
             token.transfer(&contract, &rfq.maker, &clearing);
         }
+        // Delivery leg (DvP): hand the maker's escrowed sell-side lot to the winner,
+        // atomically against the payment above. A hard transfer — the winner wants
+        // the asset, and a winner who can't receive only hurts themselves (unlike a
+        // loser refund, this is not a griefing vector).
+        if let Some(base) = env.storage().persistent().get::<DataKey, BaseLeg>(&DataKey::Base(rfq_id)) {
+            TokenClient::new(&env, &base.token).transfer(&contract, &winner, &base.amount);
+            env.storage().persistent().remove(&DataKey::Base(rfq_id)); // delivered; base_leg() now reads null
+        }
         let surplus = rfq.band_max - clearing;
         if surplus > 0 {
             Self::refund_or_credit(&env, &token, &contract, &winner, surplus, rfq_id);
@@ -453,6 +488,11 @@ impl Otc {
 
         let contract = env.current_contract_address();
         let token = Self::token(&env);
+        // return the maker's escrowed sell-side lot (DvP base leg), if any
+        if let Some(base) = env.storage().persistent().get::<DataKey, BaseLeg>(&DataKey::Base(rfq_id)) {
+            TokenClient::new(&env, &base.token).transfer(&contract, &rfq.maker, &base.amount);
+            env.storage().persistent().remove(&DataKey::Base(rfq_id)); // refunded; base_leg() now reads null
+        }
         let mut j = 0u32;
         while j < count {
             let e: BidEntry = env.storage().persistent().get(&DataKey::Bid(rfq_id, j)).unwrap();
@@ -517,6 +557,10 @@ impl Otc {
     pub fn settlement(env: Env, rfq_id: u32) -> Option<Settlement> {
         env.storage().persistent().get(&DataKey::Settled(rfq_id))
     }
+    /// The maker's escrowed sell-side lot for an RFQ (None for quote-only auctions).
+    pub fn base_leg(env: Env, rfq_id: u32) -> Option<BaseLeg> {
+        env.storage().persistent().get(&DataKey::Base(rfq_id))
+    }
     pub fn balance(env: Env) -> i128 {
         Self::token(&env).balance(&env.current_contract_address())
     }
@@ -535,6 +579,21 @@ impl Otc {
             Some(r) => r,
             None => soroban_sdk::panic_with_error!(env, OtcError::UnknownRfq),
         }
+    }
+    fn create_rfq(env: &Env, maker: Address, pair: Symbol, side: Symbol, mode: u32, band_min: i128, band_max: i128, deadline: u64) -> u32 {
+        maker.require_auth();
+        if band_min <= 0 || band_max <= band_min || band_max >= (1i128 << 64) {
+            soroban_sdk::panic_with_error!(env, OtcError::InvalidAmount);
+        }
+        let id: u32 = env.storage().instance().get(&DataKey::RfqCount).unwrap_or(0);
+        let rfq = Rfq { maker, pair, side, mode, band_min, band_max, deadline, status: ST_OPEN };
+        env.storage().persistent().set(&DataKey::Rfq(id), &rfq);
+        env.storage().persistent().set(&DataKey::BidCount(id), &0u32);
+        env.storage().instance().set(&DataKey::RfqCount, &(id + 1));
+        Self::bump_instance(env);
+        Self::bump(env, &DataKey::Rfq(id));
+        env.events().publish((symbol_short!("post"), id), rfq.maker);
+        id
     }
     fn token(env: &Env) -> TokenClient {
         let addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();

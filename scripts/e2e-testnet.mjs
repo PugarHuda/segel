@@ -72,6 +72,16 @@ async function simulate(method, ...args) {
   return Sdk.scValToNative(sim.result.retval);
 }
 
+const XLM_SAC = Sdk.Asset.native().contractId(PASSPHRASE); // base/sell-side asset for DvP
+async function sacBalanceOf(sacId, addr) {
+  const acct = await server.getAccount(ADDR);
+  const k = new Sdk.Contract(sacId);
+  const t = new Sdk.TransactionBuilder(acct, { fee: "100", networkPassphrase: PASSPHRASE })
+    .addOperation(k.call("balance", Sdk.nativeToScVal(addr, { type: "address" }))).setTimeout(30).build();
+  const sim = await server.simulateTransaction(t);
+  return Sdk.scValToNative(sim.result.retval);
+}
+
 async function main() {
   poseidon = await buildPoseidon(); F = poseidon.F;
   const asp = await buildAsp();
@@ -84,15 +94,21 @@ async function main() {
 
   const c = await client();
 
-  // 1. post RFQ — amounts in token stroops (Circle USDC, 7 decimals): 3.00–5.00 USDC
+  // 1. post a DvP RFQ — band in Circle USDC stroops (3.00–5.00); the maker also
+  //    escrows a 20 XLM sell-side lot (the delivery leg) up front.
   const bandMin = 30000000n, bandMax = 50000000n;
+  const BASE = 200000000n; // 20 XLM lot
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
-  const { res: postRes, at: postAt } = await send(() => c.post_rfq({
+  const deskBaseBefore = BigInt(await sacBalanceOf(XLM_SAC, OTC));
+  const { res: postRes, at: postAt } = await send(() => c.post_rfq_dvp({
     maker: ADDR, pair: "XLMUSDC", side: "SELL", mode: 1,
     band_min: bandMin, band_max: bandMax, deadline,
-  }), "post_rfq");
+    base_token: XLM_SAC, base_amount: BASE,
+  }), "post_rfq_dvp");
   const rfqId = postAt.result;
-  console.log(`\n[1] post_rfq -> RFQ #${rfqId}  ${tx(postRes.sendTransactionResponse?.hash)}`);
+  const deskBaseAfterPost = BigInt(await sacBalanceOf(XLM_SAC, OTC));
+  console.log(`\n[1] post_rfq_dvp -> RFQ #${rfqId}  ${tx(postRes.sendTransactionResponse?.hash)}`);
+  console.log(`    delivery leg: maker escrowed ${Number(deskBaseAfterPost - deskBaseBefore) / 1e7} XLM into the desk`);
 
   // 2. three sealed bids (distinct ASP identities) — 4.20, 4.90, 3.80 USDC
   const amounts = [42000000n, 49000000n, 38000000n];
@@ -132,8 +148,11 @@ async function main() {
   };
   const { proof } = await snarkjs.groth16.fullProve(input, `${W}/auctionResult_js/auctionResult.wasm`, `${W}/auctionResult_final.zkey`);
   const { res: r } = await send(() => c.settle({ rfq_id: Number(rfqId), proof: scProof(proof), winner: ADDR, clearing: bid[ri] }), "settle");
+  const deskBaseAfterSettle = BigInt(await sacBalanceOf(XLM_SAC, OTC));
   console.log(`\n[3] settle (Vickrey) winner=#${wi} clearing=${bid[ri]} (losers hidden) -> ${tx(r.sendTransactionResponse?.hash)}`);
-  console.log("\n✅ Full sealed-bid OTC flow verified live on Stellar testnet.");
+  console.log(`    delivery leg: desk released ${Number(deskBaseAfterPost - deskBaseAfterSettle) / 1e7} XLM to the winner (DvP complete)`);
+  if (deskBaseAfterSettle !== deskBaseBefore) throw new Error(`DvP base not delivered: desk still holds ${deskBaseAfterSettle - deskBaseBefore} extra base`);
+  console.log("\n✅ Full two-asset DvP OTC flow verified live on Stellar testnet.");
 }
 
 // snarkjs leaves WASM workers on the event loop; exit explicitly so the test

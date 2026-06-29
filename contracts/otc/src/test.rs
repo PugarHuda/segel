@@ -310,6 +310,64 @@ fn claim_nothing_rejected() {
     c.otc.claim(&0, &a);
 }
 
+// Two-asset delivery-vs-payment: the maker escrows a sell-side lot at post time;
+// at settle the winner receives that lot atomically against paying the clearing
+// price. The "OTC desk" is now a real swap, not a one-sided payment.
+#[test]
+fn dvp_delivers_base_to_winner() {
+    let env = Env::default();
+    let c = setup(&env);
+    // a SECOND asset = the sell-side lot the maker delivers (e.g. XLM-for-USDC).
+    let base_obj = env.register_stellar_asset_contract_v2(Address::generate(&env));
+    let base_addr = base_obj.address();
+    let base = TokenClient::new(&env, &base_addr);
+    StellarAssetClient::new(&env, &base_addr).mint(&c.maker, &1000);
+
+    let id = c.otc.post_rfq_dvp(
+        &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
+        &100, &500, &1000, &base_addr, &800,
+    );
+    assert_eq!(base.balance(&c.maker), 200); // 800 lot escrowed at post
+    assert_eq!(base.balance(&c.otc.address), 800); // held by the desk
+    assert_eq!(c.otc.base_leg(&id).unwrap().amount, 800);
+
+    let w = bidder(&env, &c, 1000);
+    let l = bidder(&env, &c, 1000);
+    c.otc.commit_bid(&w, &id, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
+    c.otc.commit_bid(&l, &id, &b32(&env, 2), &b32(&env, 12), &dummy_proof(&env));
+    c.otc.settle(&id, &dummy_proof(&env), &w, &300);
+
+    assert_eq!(c.token.balance(&c.maker), 300); // maker paid clearing in USDC (quote)
+    assert_eq!(base.balance(&w), 800); // winner RECEIVED the sell-side lot (delivery)
+    assert_eq!(base.balance(&c.otc.address), 0); // desk delivered all base
+    assert!(c.otc.base_leg(&id).is_none()); // leg cleared after delivery
+    assert_eq!(c.token.balance(&w), 700); // quote: 1000 - 500 escrow + 200 surplus
+    assert_eq!(c.token.balance(&l), 1000); // loser refunded
+}
+
+#[test]
+fn dvp_cancel_returns_base_to_maker() {
+    let env = Env::default();
+    let c = setup(&env);
+    let base_obj = env.register_stellar_asset_contract_v2(Address::generate(&env));
+    let base_addr = base_obj.address();
+    let base = TokenClient::new(&env, &base_addr);
+    StellarAssetClient::new(&env, &base_addr).mint(&c.maker, &1000);
+
+    let id = c.otc.post_rfq_dvp(
+        &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
+        &100, &500, &1000, &base_addr, &800,
+    );
+    let t = bidder(&env, &c, 1000);
+    c.otc.commit_bid(&t, &id, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
+    env.ledger().with_mut(|li| li.timestamp = 2000);
+    c.otc.cancel_expired(&id);
+    assert_eq!(base.balance(&c.maker), 1000); // sell-side lot returned to the maker
+    assert!(c.otc.base_leg(&id).is_none()); // leg cleared after refund
+    assert_eq!(c.token.balance(&t), 1000); // bidder refunded
+    assert_eq!(c.otc.get_rfq_view(&id).status, ST_CANCELLED);
+}
+
 #[test]
 #[should_panic(expected = "Error(Contract, #12)")] // AlreadySettled
 fn settle_twice_rejected() {

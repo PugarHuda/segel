@@ -21,6 +21,9 @@ export const AUCTION_VERIFIER = "CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJ
 export const USDC_SAC = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
 // Reflector SEP-40 oracle (testnet, External CEX & DEX feed) — read via OTC.mark_price.
 export const ORACLE = "CCYOZJCOPG34LLQQ7N24YXBM7LL62R7ONMZ3G6WZAAYPB5OYKOMJRN63";
+// Native XLM Stellar Asset Contract (testnet) — the sell-side/base asset a maker
+// escrows for a delivery-vs-payment trade (the winner receives this lot at settle).
+export const XLM_SAC = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 // Circle's REAL testnet USDC (issuer GBBD47IF…) — the desk escrows and settles in it.
 const USDC = new Sdk.Asset("USDC", "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5");
 
@@ -67,6 +70,7 @@ export async function getRfq(id) {
   const r = await simulate(OTC, "get_rfq_view", u32(id));
   if (!r.ok) return null;
   const v = r.value;
+  const bl = await simulate(OTC, "base_leg", u32(id));
   return {
     id,
     maker: v.maker,
@@ -77,6 +81,8 @@ export async function getRfq(id) {
     bandMax: v.band_max.toString(),
     deadline: Number(v.deadline),
     status: Number(v.status),
+    // delivery leg: human XLM lot the winner receives at settle (null = quote-only RFQ)
+    baseLot: bl.ok && bl.value ? toUsdc(bl.value.amount.toString()) : null,
   };
 }
 
@@ -147,7 +153,7 @@ const OTC_ERRORS = {
   5: "you already bid on this RFQ (nullifier used)", 6: "this RFQ is full (max 8 bids)",
   7: "invalid amount", 8: "the zero-knowledge proof was rejected on-chain",
   9: "only the maker can settle", 10: "clearing price out of band", 11: "no bids to settle",
-  12: "already settled",
+  12: "already settled", 13: "nothing to claim",
 };
 function friendly(e) {
   const msg = (e && e.message) || String(e);
@@ -157,10 +163,12 @@ function friendly(e) {
 }
 const hashOf = (res) => res?.sendTransactionResponse?.hash || res?.getTransactionResponse?.txHash || "";
 
-export async function postRfq({ pair, side, mode, bandMin, bandMax, deadline }) {
+// baseAmount = human XLM lot the maker escrows as the delivery leg (0 = quote-only).
+// Always routes through post_rfq_dvp; base_amount 0 behaves exactly like the old post_rfq.
+export async function postRfq({ pair, side, mode, bandMin, bandMax, deadline, baseAmount = 0 }) {
   try {
     const c = await writeClient();
-    const at = await c.post_rfq({
+    const at = await c.post_rfq_dvp({
       maker: c._from,
       pair: pair.slice(0, 9),
       side: side.slice(0, 9),
@@ -168,6 +176,8 @@ export async function postRfq({ pair, side, mode, bandMin, bandMax, deadline }) 
       band_min: toStroops(bandMin), // UI passes human USDC; contract stores stroops
       band_max: toStroops(bandMax),
       deadline: BigInt(deadline),
+      base_token: XLM_SAC,
+      base_amount: toStroops(baseAmount), // 7-dec stroops, same scale as XLM SAC
     });
     const res = await at.signAndSend();
     return { ok: true, hash: hashOf(res), id: at.result };

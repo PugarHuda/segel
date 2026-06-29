@@ -1,7 +1,7 @@
 {
   "network": "testnet",
   "project": "Segel",
-  "description": "Segel — confidential sealed-bid OTC desk on Stellar. Two BN254 Groth16 ZK circuits (bidValidity, auctionResult) verified on-chain by Soroban; an otc desk contract that escrows and settles in Circle's real testnet USDC (SAC), with Vickrey settlement, per-RFQ nullifiers, and a live Reflector price oracle.",
+  "description": "Segel — confidential sealed-bid OTC desk on Stellar. Two BN254 Groth16 ZK circuits (bidValidity, auctionResult) verified on-chain by Soroban; an otc desk contract that escrows and settles in Circle's real testnet USDC (SAC), with Vickrey settlement, per-RFQ nullifiers, a live Reflector price oracle, and two-asset delivery-vs-payment (the maker escrows a sell-side lot delivered to the winner against payment).",
   "identity": {
     "alias": "corredor",
     "address": "GB2CVRVNR4VN5LYVOX637ZS46RJONKWVQZ4IZC5IIEPAPPFRC5CHYRVS"
@@ -35,7 +35,14 @@
     "previousContractIds": ["CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR", "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3"],
     "wasm": "contracts/otc/",
     "constructor": ["admin", "token", "bid_verifier", "auction_verifier", "asp_root", "oracle"],
-    "functions": ["post_rfq", "commit_bid", "settle", "cancel_expired", "claim", "claimable", "set_verifiers", "set_admin", "set_oracle", "set_token", "upgrade", "mark_price", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "balance", "admin", "verifiers", "oracle", "token_address"],
+    "functions": ["post_rfq", "post_rfq_dvp", "commit_bid", "settle", "cancel_expired", "claim", "claimable", "set_verifiers", "set_admin", "set_oracle", "set_token", "upgrade", "mark_price", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "base_leg", "balance", "admin", "verifiers", "oracle", "token_address"],
+    "dvpUpgrade": {
+      "note": "Two-asset delivery-vs-payment (DvP) added live via upgrade() — SAME contract id, fully backward-compatible (existing quote-only RFQs untouched). post_rfq_dvp lets a maker escrow a sell-side lot (a second SAC, e.g. native XLM) up front; settle delivers that lot to the winner atomically against the winner's USDC payment, and cancel_expired returns it to the maker. The leg key is cleared on delivery/refund, so base_leg() reads null afterward. The desk is now a real swap, not a one-sided payment.",
+      "baseAsset": "native XLM SAC CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+      "wasmHash": "9f76f9181f703514e51ba10e00934f385d55050863aab75af2511006d29078b6",
+      "uploadTx": "https://stellar.expert/explorer/testnet/tx/c533e4e37731a7f8dd152cebdfdd7a920d690b9dddbd2b75aa1855ad4809748d",
+      "upgradeTx": "https://stellar.expert/explorer/testnet/tx/f64b8ad6dc29a065a2817b12377606b7efbdfbf403db3823f65fafd21cfda284"
+    },
     "hardeningUpgrade": {
       "note": "Post-audit security hardening applied live via upgrade() — SAME contract id, no redeploy. Fixes: reserve=band_min (a lone bidder can no longer clear at 0); un-griefable refunds (settle/cancel use a non-reverting transfer and credit a claimable balance on failure, so a bidder who drops their USDC trustline can't lock escrow) + a claim() pull entrypoint; checks-effects-interactions (status written before any transfer).",
       "wasmHash": "5001f856dd4611329b87b260fe18c461d3891ee6adda01e9dbbeef51f5c90151",
@@ -65,7 +72,8 @@
       "reserve": "settle requires clearing >= band_min, so a single-bidder auction (Vickrey runner-up = padded 0) can no longer clear at 0",
       "refundSafety": "settle/cancel_expired refund via a NON-reverting transfer; a failed refund (e.g. a bidder dropped their USDC trustline) is credited as a claimable balance instead of bricking the whole batch — pulled later via claim(). One bidder cannot DoS settlement or the cancel cleanup",
       "adminControls": "admin-gated set_verifiers (rotate a buggy verifier — previously immutable), set_admin (hand over the role), set_oracle (swap the price feed), set_token (migrate the escrow asset), and upgrade (in-place WASM upgrade, keeps the contract id); instance-storage TTL is extended on every state change so config cannot expire",
-      "unitTests": "20/20 passing (contracts/otc/src/test.rs)"
+      "dvp": "post_rfq_dvp escrows the maker's sell-side lot at post; settle hands it to the winner with a hard transfer (the winner wants the asset — a winner who can't receive only hurts themselves, so unlike a loser refund this is not a griefing vector) atomically against the USDC payment; cancel_expired returns it to the maker. Delivery/refund clears the leg key (no double-delivery; base_leg() reads null after)",
+      "unitTests": "22/22 passing (contracts/otc/src/test.rs), incl. dvp_delivers_base_to_winner + dvp_cancel_returns_base_to_maker"
     }
   },
   "e2eLive": {
@@ -77,6 +85,13 @@
       "https://stellar.expert/explorer/testnet/tx/a92669a21d698a81354d91ad4fbbb2c01e3a28294c92859dd5861e341198b6cd"
     ],
     "settle": "https://stellar.expert/explorer/testnet/tx/6cdba51be153182a47c372107e4885665541fe2591de781c09c73ad897ae3ee5"
+  },
+  "e2eLiveDvp": {
+    "description": "Full TWO-ASSET DvP flow verified live on testnet (scripts/e2e-testnet.mjs): maker escrows a 20 XLM sell-side lot at post_rfq_dvp -> 3 sealed USDC bids with real bidValidity proofs -> Vickrey settle delivers the 20 XLM to the winner against their USDC payment. Verified by reading the desk's XLM SAC balance: it rises by 20 at post and falls by 20 at settle (delivery proven on-chain), and the script throws if the lot is not delivered.",
+    "rfqId": 10,
+    "baseLotXlm": 20,
+    "postRfqDvp": "https://stellar.expert/explorer/testnet/tx/05d7033de092c0ffd0bfe2d6db2b538a924e760e946c28677d6221c63a38579a",
+    "settle": "https://stellar.expert/explorer/testnet/tx/7ccc7266edf5942c9b4d24480ea323d99e80f7f2bdecd9399a4032761cda11c4"
   },
   "circuits": {
     "system": "Groth16 over BN254",

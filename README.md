@@ -126,13 +126,16 @@ spoofed identity, or a different bid set — any mismatch fails verification.
 - **Live Reflector oracle (real cross-contract).** `mark_price("XLM")` invokes the
   Reflector SEP-40 testnet feed on-chain and returns the live USD mark (~$0.176);
   `mark_price("USDC")` ≈ $1.001. Surfaced live in the Audit tab.
-- **20/20 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
-  (`scripts/e2e-testnet.mjs`): post → 3 sealed bids → Vickrey settle on testnet.
+- **Two-asset delivery-vs-payment (DvP).** `post_rfq_dvp` lets the maker escrow a
+  sell-side lot (a second SAC, e.g. native XLM) up front; `settle` delivers it to
+  the winner atomically against their USDC payment, `cancel_expired` returns it to
+  the maker. Verified live: the desk's XLM balance rises by the lot at post and
+  falls by it at settle. The desk is a real swap, not a one-sided payment.
+- **22/22 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
+  (`scripts/e2e-testnet.mjs`): post a 20 XLM lot → 3 sealed bids → Vickrey settle
+  with delivery, on testnet.
 
 ## Still honestly simplified
-
-- **Single-asset settlement.** The auctioned value transfers as the winner's USDC
-  payment to the maker; a full two-asset atomic DvP swap is future work.
 - **Who runs the settle prover.** A sealed auction's settler necessarily sees the
   bid openings (this is normal — an auctioneer sees bids). Segel keeps losing bids
   hidden from the **public/chain**; hiding them from the auctioneer too needs MPC
@@ -182,7 +185,7 @@ node scripts/e2e-testnet.mjs
 
 **On-chain** (contracts already deployed — IDs above):
 - Build a verifier WASM: `bash scripts/wsl-build-verifier.sh circuits/build/<name>_vk.json <out>.wasm`
-- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 20/20)
+- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 22/22)
 - Deploy: `bash scripts/wsl-deploy.sh`
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`

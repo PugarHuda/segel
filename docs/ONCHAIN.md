@@ -12,7 +12,7 @@ npm run circuit:all
 bash scripts/wsl-build-verifier.sh circuits/build/bidValidity_vk.json   bid_verifier.wasm
 bash scripts/wsl-build-verifier.sh circuits/build/auctionResult_vk.json auction_verifier.wasm
 
-# desk contract (WSL) — cargo test -> 20/20
+# desk contract (WSL) — cargo test -> 22/22
 bash scripts/wsl-build-otc.sh
 ```
 

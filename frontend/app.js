@@ -29,7 +29,7 @@ const STATUS = {
 const S = {
   view: "active", connected: false, address: null, balance: "0",
   rfqs: [], events: [], loading: true, modal: null, toast: null,
-  form: { pair: "XLM / USDC", side: "SELL", mode: 1, min: "3", max: "5", deadlineMin: "60" },
+  form: { pair: "XLM / USDC", side: "SELL", mode: 1, min: "3", max: "5", deadlineMin: "60", lot: "20" },
   createMode: 1, health: null,
 };
 
@@ -156,7 +156,7 @@ function viewActive() {
       </div>
       <span style="font-size:9.5px;font-weight:600;color:${r.mode === 0 ? "#3a4a8a" : "#7a5fae"}">${r.mode === 0 ? "DIRECT" : "RFQ"}</span>
       <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#5d6273">${short(r.maker)}${mine ? `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eef1fb;color:#6c7fe0">YOU</span>` : ""}</div>
-      <div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:#5d6273"><span class="msi" style="font-size:13px;color:#b6bdd0">lock</span>${usd(r.bandMin)}–${usd(r.bandMax)}</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:#5d6273"><span class="msi" style="font-size:13px;color:#b6bdd0">lock</span>${usd(r.bandMin)}–${usd(r.bandMax)}${r.baseLot ? `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eaf5ef;color:#2f9b6e" title="delivery leg: winner receives this lot">${(+r.baseLot).toLocaleString()} XLM</span>` : ""}</div>
       <span style="font-weight:700;font-size:13px;color:#14151a">${r.bids}</span>
       <span><span style="font-size:9.5px;font-weight:600;padding:3px 9px;border-radius:6px;background:${st.bg};color:${st.c}">${st.l}</span></span>
       <div style="display:flex;justify-content:flex-end">${act ? `<button class="rowact" data-act="${act}" style="font-size:10.5px;font-weight:600;border:none;cursor:pointer;padding:7px 12px;border-radius:7px;background:${bg};color:${col}">${label}</button>` : `<span style="font-size:10px;color:${expired ? "#c98a2e" : "#9aa0b2"}">${exp}</span>`}</div>
@@ -200,7 +200,8 @@ function viewCreate() {
             <button data-act="side:SELL" style="flex:1;font-size:12px;font-weight:600;cursor:pointer;padding:9px;border-radius:8px;border:1px solid ${S.form.side === "SELL" ? "#e8a8c4" : "#e4e8f2"};background:${S.form.side === "SELL" ? "#fbe7ef" : "#fff"};color:${S.form.side === "SELL" ? "#b05080" : "#9aa0b2"}">Sell</button></div></div>
         ${field("MIN PRICE", "min", S.form.min)}
         ${field("MAX PRICE (= escrow)", "max", S.form.max)}
-        ${field("DEADLINE (min from now)", "deadlineMin", S.form.deadlineMin, "1 / -1")}
+        ${field("LOT — XLM you deliver (0 = none)", "lot", S.form.lot)}
+        ${field("DEADLINE (min from now)", "deadlineMin", S.form.deadlineMin)}
       </div>
       <button data-act="post" style="margin-top:16px;width:100%;font-size:12.5px;font-weight:600;cursor:pointer;padding:12px;border-radius:9px;border:none;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:7px">Post ${m === 0 ? "direct" : "RFQ"} &amp; open escrow ↗</button>
     </div></div>`;
@@ -270,7 +271,7 @@ function viewAudit() {
         <div id="poseidon-out" style="font-size:10px;color:#2f7d5e;margin-top:10px;word-break:break-all"></div></div>
       <div style="border:1px solid #edf0f7;border-radius:13px;padding:18px;background:#fbfcff">
         <div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:13px">SELF-AUDIT · contract tests</div>
-        <div style="display:flex;gap:10px;margin-bottom:13px"><div style="flex:1;text-align:center;background:#e6f5ee;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#2f9b6e">20</div><div style="font-size:9.5px;color:#5d8c75">unit tests</div></div><div style="flex:1;text-align:center;background:#eef1fb;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#3a4a8a">2</div><div style="font-size:9.5px;color:#6a72a0">circuits</div></div><div style="flex:1;text-align:center;background:#fbf3df;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#b08a2e">1</div><div style="font-size:9.5px;color:#9a7a3a">tamper test</div></div></div>
+        <div style="display:flex;gap:10px;margin-bottom:13px"><div style="flex:1;text-align:center;background:#e6f5ee;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#2f9b6e">22</div><div style="font-size:9.5px;color:#5d8c75">unit tests</div></div><div style="flex:1;text-align:center;background:#eef1fb;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#3a4a8a">2</div><div style="font-size:9.5px;color:#6a72a0">circuits</div></div><div style="flex:1;text-align:center;background:#fbf3df;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#b08a2e">1</div><div style="font-size:9.5px;color:#9a7a3a">tamper test</div></div></div>
         <div style="font-size:10.5px;color:#5d6273;line-height:1.6">Binding: the contract builds every verifier public-input vector itself. Tampering the clearing price → rejected on-chain (InvalidProof).</div></div>
       <div style="border:1px solid #edf0f7;border-radius:13px;padding:18px;background:#0b0b0e;grid-column:1 / -1">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div style="font-size:11px;letter-spacing:1px;color:#7e8294">MCP SERVER · Stellar-native, read-only</div><span style="font-size:10px;color:#4cae8a;display:inline-flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#4cae8a"></span>live · reads on-chain</span></div>
@@ -335,6 +336,7 @@ function modalEl() {
       <div style="padding:16px 22px;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff"><div><div style="font-size:10px;opacity:.85;letter-spacing:1px">SEAL A BID · RFQ-${String(r.id).padStart(3, "0")}</div><div style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:18px;margin-top:2px">${esc(r.pair)}</div></div><button data-act="closemodal" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">×</button></div>
       <div style="padding:20px 22px">
         <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a8f9c;margin-bottom:8px"><span>your sealed bid (USDC)</span><span>band ${usd(r.bandMin)}–${usd(r.bandMax)}</span></div>
+        ${r.baseLot ? `<div style="display:flex;align-items:center;gap:7px;background:#eaf5ef;border-radius:9px;padding:9px 12px;margin-bottom:12px"><span class="msi" style="font-size:16px;color:#2f9b6e">local_shipping</span><div style="font-size:11px;color:#2f7a58;line-height:1.4">Win and you receive <b>${(+r.baseLot).toLocaleString()} XLM</b>, delivered on-chain against your payment (DvP).</div></div>` : ""}
         <input data-bid="amt" value="${esc(amt)}" inputmode="decimal" style="width:100%;font-family:'Pixelify Sans',monospace;font-weight:700;font-size:30px;text-align:center;border:1px solid ${inBand ? "#cdd6f7" : "#e8b0b0"};border-radius:11px;padding:8px;margin-bottom:12px;color:${inBand ? "#14151a" : "#b05050"}" />
         <input type="range" data-bid="slider" min="${bMin}" max="${bMax}" step="0.01" value="${inBand ? amt : bMin}" />
         <div style="display:flex;justify-content:space-between;margin-top:7px;font-size:10.5px;color:#9aa0b2"><span>min ${usd(r.bandMin)}</span><span>max ${usd(r.bandMax)}</span></div>
@@ -444,9 +446,10 @@ async function doPost() {
   if (+f.min <= 0 || +f.max <= +f.min) return toast("Max must be greater than min", "!", "#3a2a14", "#ffe0b0");
   const deadline = Math.floor(Date.now() / 1000) + Math.max(1, +f.deadlineMin) * 60;
   toast("Posting RFQ on-chain…", "◷");
-  const res = await chain.postRfq({ pair: f.pair.replace(/\s/g, "").replace("/", "").slice(0, 9), side: f.side, mode: f.mode, bandMin: f.min, bandMax: f.max, deadline });
+  const lot = Math.max(0, +f.lot || 0);
+  const res = await chain.postRfq({ pair: f.pair.replace(/\s/g, "").replace("/", "").slice(0, 9), side: f.side, mode: f.mode, bandMin: f.min, bandMax: f.max, deadline, baseAmount: lot });
   if (!res.ok) return toast(res.error, "✕", "#3a1414", "#ffd2d2");
-  logEvent("POST", "Posted RFQ", `${f.pair} · band ${f.min}–${f.max}`, res.hash);
+  logEvent("POST", "Posted RFQ", `${f.pair} · band ${f.min}–${f.max}${lot ? ` · ${lot} XLM lot` : ""}`, res.hash);
   toast("RFQ posted ✓", "✓");
   S.view = "active"; await refresh();
 }
