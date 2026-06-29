@@ -12,12 +12,14 @@
     "test:negative": "node scripts/test-negative.mjs",
     "test:browser": "node scripts/browser-test.mjs",
     "test:browser-zk": "node scripts/browser-e2e.mjs",
+    "test:e2e-ui": "node scripts/browser-playwright.mjs",
     "e2e": "node scripts/e2e-testnet.mjs",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {
     "circomlib": "^2.0.5",
     "circomlibjs": "^0.1.7",
+    "playwright-core": "^1.61.1",
     "puppeteer-core": "^25.1.0",
     "snarkjs": "^0.7.5"
   },
