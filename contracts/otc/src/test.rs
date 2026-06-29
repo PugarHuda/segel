@@ -32,6 +32,39 @@ impl MockOracle {
     }
 }
 
+// Minimal SEP-41-shaped token whose `transfer` TRAPS when paying a designated
+// `blocked` address — simulates a bidder who dropped their USDC trustline. Lets us
+// prove a failing refund is credited as claimable instead of bricking settlement.
+#[contract]
+pub struct MockToken;
+
+#[contractimpl]
+impl MockToken {
+    pub fn __constructor(e: Env, blocked: Address) {
+        e.storage().instance().set(&symbol_short!("blocked"), &blocked);
+    }
+    pub fn unblock(e: Env) {
+        e.storage().instance().remove(&symbol_short!("blocked"));
+    }
+    pub fn mint(e: Env, to: Address, amt: i128) {
+        let b: i128 = e.storage().persistent().get(&to).unwrap_or(0);
+        e.storage().persistent().set(&to, &(b + amt));
+    }
+    pub fn balance(e: Env, id: Address) -> i128 {
+        e.storage().persistent().get(&id).unwrap_or(0)
+    }
+    pub fn transfer(e: Env, from: Address, to: Address, amount: i128) {
+        let blocked: Option<Address> = e.storage().instance().get(&symbol_short!("blocked"));
+        if blocked == Some(to.clone()) {
+            panic!("recipient cannot receive (no trustline)");
+        }
+        let fb: i128 = e.storage().persistent().get(&from).unwrap_or(0);
+        e.storage().persistent().set(&from, &(fb - amount));
+        let tb: i128 = e.storage().persistent().get(&to).unwrap_or(0);
+        e.storage().persistent().set(&to, &(tb + amount));
+    }
+}
+
 fn b32(env: &Env, k: u8) -> BytesN<32> {
     BytesN::from_array(env, &[k; 32])
 }
@@ -211,6 +244,70 @@ fn settle_rejects_clearing_over_band() {
     let w = bidder(&env, &c, 1000);
     c.otc.commit_bid(&w, &0, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
     c.otc.settle(&0, &dummy_proof(&env), &w, &600); // > band_max 500
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #10)")] // BadClearing — below reserve (band_min)
+fn settle_rejects_clearing_below_reserve() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.otc.post_rfq(&c.maker, &symbol_short!("X"), &symbol_short!("SELL"), &1, &100, &500, &1000);
+    let w = bidder(&env, &c, 1000);
+    c.otc.commit_bid(&w, &0, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
+    // a lone bidder's Vickrey runner-up is a padded 0; clearing below band_min (100)
+    // — including the degenerate 0 — must be rejected (the reserve).
+    c.otc.settle(&0, &dummy_proof(&env), &w, &50);
+}
+
+// Finding-1 fix: a bidder who can't receive the refund (no/blocked trustline) does
+// NOT brick settlement — their refund is credited as claimable and pulled later.
+#[test]
+fn failed_refund_becomes_claimable_then_claimed() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let maker = Address::generate(&env);
+    let v = env.register(MockVerifier, ());
+    let oracle = env.register(MockOracle, ());
+    let w = Address::generate(&env);
+    let l = Address::generate(&env);
+    // token that refuses to pay `l` — simulates l's dropped USDC trustline.
+    let tok = env.register(MockToken, (l.clone(),));
+    let token = MockTokenClient::new(&env, &tok);
+    token.mint(&w, &1000);
+    token.mint(&l, &1000);
+    let id = env.register(
+        Otc,
+        (admin, tok.clone(), v.clone(), v.clone(), b32(&env, 100), oracle),
+    );
+    let otc = OtcClient::new(&env, &id);
+    otc.post_rfq(&maker, &symbol_short!("X"), &symbol_short!("SELL"), &1, &100, &500, &1000);
+    otc.commit_bid(&w, &0, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
+    otc.commit_bid(&l, &0, &b32(&env, 2), &b32(&env, 12), &dummy_proof(&env));
+    assert_eq!(otc.balance(), 1000); // 2 x 500 escrow
+
+    // l's refund will trap, but settlement must still complete.
+    otc.settle(&0, &dummy_proof(&env), &w, &300);
+    assert_eq!(otc.get_rfq_view(&0).status, ST_SETTLED);
+    assert_eq!(token.balance(&maker), 300); // maker paid
+    assert_eq!(token.balance(&w), 700); // winner: 1000 - 500 escrow + 200 surplus
+    assert_eq!(otc.claimable(&0, &l), 500); // loser refund CREDITED, not lost
+    assert_eq!(token.balance(&l), 500); // not yet refunded (still 1000-500)
+
+    // l fixes their trustline and pulls the refund.
+    token.unblock();
+    otc.claim(&0, &l);
+    assert_eq!(token.balance(&l), 1000);
+    assert_eq!(otc.claimable(&0, &l), 0);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #13)")] // NothingToClaim
+fn claim_nothing_rejected() {
+    let env = Env::default();
+    let c = setup(&env);
+    let a = Address::generate(&env);
+    c.otc.claim(&0, &a);
 }
 
 #[test]

@@ -117,6 +117,7 @@ pub enum OtcError {
     BadClearing = 10,
     NoBids = 11,
     AlreadySettled = 12,
+    NothingToClaim = 13,
 }
 
 #[contracttype]
@@ -133,6 +134,7 @@ enum DataKey {
     Bid(u32, u32),
     Nullifier(u32, BytesN<32>),
     Settled(u32),
+    Claimable(u32, Address),
 }
 
 #[contract]
@@ -355,7 +357,10 @@ impl Otc {
         if count == 0 {
             soroban_sdk::panic_with_error!(&env, OtcError::NoBids);
         }
-        if clearing < 0 || clearing > rfq.band_max {
+        // Reserve = band_min: the clearing (second) price must meet the maker's
+        // minimum. This also rejects the degenerate single-bid case, whose Vickrey
+        // runner-up is a padded 0 (a lone bidder can no longer clear at 0).
+        if clearing < rfq.band_min || clearing > rfq.band_max {
             soroban_sdk::panic_with_error!(&env, OtcError::BadClearing);
         }
 
@@ -392,26 +397,9 @@ impl Otc {
         }
         Self::verify(&env, DataKey::AuctionVerifier, &proof, &pi);
 
-        // Move the money.
-        let contract = env.current_contract_address();
-        let token = Self::token(&env);
-        if clearing > 0 {
-            token.transfer(&contract, &rfq.maker, &clearing);
-        }
-        let surplus = rfq.band_max - clearing;
-        if surplus > 0 {
-            token.transfer(&contract, &winner, &surplus);
-        }
-        // refund every non-winner in full
-        let mut j = 0u32;
-        while j < count {
-            let e: BidEntry = env.storage().persistent().get(&DataKey::Bid(rfq_id, j)).unwrap();
-            if e.bidder != winner {
-                token.transfer(&contract, &e.bidder, &rfq.band_max);
-            }
-            j += 1;
-        }
-
+        // EFFECTS before INTERACTIONS: mark settled FIRST, so a (hypothetical) token
+        // callback can't reenter (status != OPEN) and a failed refund can't roll back
+        // the recorded result.
         rfq.status = ST_SETTLED;
         env.storage().persistent().set(&DataKey::Rfq(rfq_id), &rfq);
         env.storage().persistent().set(
@@ -420,7 +408,30 @@ impl Otc {
         );
         Self::bump_instance(&env);
         Self::bump(&env, &DataKey::Settled(rfq_id));
-        env.events().publish((symbol_short!("settle"), rfq_id), (winner, clearing));
+        env.events().publish((symbol_short!("settle"), rfq_id), (winner.clone(), clearing));
+
+        // INTERACTIONS: move the money. The maker is the authenticated settler, so a
+        // direct transfer is fine (their own trustline). Bidder refunds use a
+        // NON-reverting transfer — if one fails (e.g. a bidder dropped their USDC
+        // trustline after escrowing), it's credited as claimable instead of bricking
+        // the whole settlement (and the cancel cleanup). No single bidder can DoS it.
+        let contract = env.current_contract_address();
+        let token = Self::token(&env);
+        if clearing > 0 {
+            token.transfer(&contract, &rfq.maker, &clearing);
+        }
+        let surplus = rfq.band_max - clearing;
+        if surplus > 0 {
+            Self::refund_or_credit(&env, &token, &contract, &winner, surplus, rfq_id);
+        }
+        let mut j = 0u32;
+        while j < count {
+            let e: BidEntry = env.storage().persistent().get(&DataKey::Bid(rfq_id, j)).unwrap();
+            if e.bidder != winner {
+                Self::refund_or_credit(&env, &token, &contract, &e.bidder, rfq.band_max, rfq_id);
+            }
+            j += 1;
+        }
     }
 
     /// Anyone may clean up an expired, unsettled RFQ: refund every bidder's escrow
@@ -434,18 +445,41 @@ impl Otc {
             soroban_sdk::panic_with_error!(&env, OtcError::NotExpired);
         }
         let count: u32 = env.storage().persistent().get(&DataKey::BidCount(rfq_id)).unwrap_or(0);
+        // EFFECTS before INTERACTIONS.
+        rfq.status = ST_CANCELLED;
+        env.storage().persistent().set(&DataKey::Rfq(rfq_id), &rfq);
+        Self::bump_instance(&env);
+        env.events().publish((symbol_short!("cancel"), rfq_id), count);
+
         let contract = env.current_contract_address();
         let token = Self::token(&env);
         let mut j = 0u32;
         while j < count {
             let e: BidEntry = env.storage().persistent().get(&DataKey::Bid(rfq_id, j)).unwrap();
-            token.transfer(&contract, &e.bidder, &rfq.band_max);
+            Self::refund_or_credit(&env, &token, &contract, &e.bidder, rfq.band_max, rfq_id);
             j += 1;
         }
-        rfq.status = ST_CANCELLED;
-        env.storage().persistent().set(&DataKey::Rfq(rfq_id), &rfq);
-        Self::bump_instance(&env);
-        env.events().publish((symbol_short!("cancel"), rfq_id), count);
+    }
+
+    /// Pull a refund a push transfer couldn't deliver (the bidder had no trustline at
+    /// settle/cancel time, so the amount was credited rather than sent). The bidder
+    /// claims it once they can receive the token again. This is the escape hatch that
+    /// makes the refund batch un-griefable.
+    pub fn claim(env: Env, rfq_id: u32, bidder: Address) {
+        bidder.require_auth();
+        let key = DataKey::Claimable(rfq_id, bidder.clone());
+        let amt: i128 = env.storage().persistent().get(&key).unwrap_or(0);
+        if amt <= 0 {
+            soroban_sdk::panic_with_error!(&env, OtcError::NothingToClaim);
+        }
+        env.storage().persistent().remove(&key); // effects before interaction (no double-claim)
+        Self::token(&env).transfer(&env.current_contract_address(), &bidder, &amt);
+        env.events().publish((symbol_short!("claim"), rfq_id), (bidder, amt));
+    }
+
+    /// Refund still owed to `bidder` for `rfq_id` (0 if none / already claimed).
+    pub fn claimable(env: Env, rfq_id: u32, bidder: Address) -> i128 {
+        env.storage().persistent().get(&DataKey::Claimable(rfq_id, bidder)).unwrap_or(0)
     }
 
     /// On-chain Poseidon(2) computed with BN254 host field ops — returns the SAME
@@ -505,6 +539,18 @@ impl Otc {
     fn token(env: &Env) -> TokenClient {
         let addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         TokenClient::new(env, &addr)
+    }
+    /// Send `amt` to `to`; if the transfer traps (e.g. no/blocked trustline), credit
+    /// it as claimable instead of letting one bad recipient revert the whole batch.
+    /// `try_transfer` returns Err on a sub-call trap rather than propagating it.
+    fn refund_or_credit(env: &Env, token: &TokenClient, from: &Address, to: &Address, amt: i128, rfq_id: u32) {
+        if token.try_transfer(from, to, &amt).is_err() {
+            let key = DataKey::Claimable(rfq_id, to.clone());
+            let prev: i128 = env.storage().persistent().get(&key).unwrap_or(0);
+            env.storage().persistent().set(&key, &(prev + amt));
+            env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND);
+            env.events().publish((symbol_short!("credit"), rfq_id), (to.clone(), amt));
+        }
     }
     fn fr(_env: &Env, b: &BytesN<32>) -> Bn254Fr {
         Bn254Fr::from_bytes(b.clone())

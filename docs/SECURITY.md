@@ -28,15 +28,25 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
    (`Poseidon(idSecret)` ∈ root) without revealing which member.
 7. **Custody safety.** Escrow can only leave via `settle` (winner pays clearing to
    maker, surplus + losers refunded) or `cancel_expired` (everyone refunded). The
-   contract binds the released amounts; `clearing` is range-checked to `band_max`.
+   contract binds the released amounts; `clearing` is range-checked to
+   `[band_min, band_max]` — the `band_min` lower bound is a reserve, so a
+   single-bidder auction (Vickrey runner-up = padded 0) cannot clear at 0.
 8. **Verifier fail-closed.** `verify` asserts the returned bool, so a verifier that
    returns `false` can never make a proof check a silent no-op.
+9. **Un-griefable refunds.** `settle`/`cancel_expired` refund each bidder with a
+   non-reverting transfer; if one fails (e.g. a bidder dropped their USDC trustline),
+   the amount is credited as a **claimable** balance and pulled later via `claim()`,
+   so no single bidder can revert the batch and lock everyone's escrow. State is
+   written before any transfer (checks-effects-interactions).
 
 ## Tested
 
-- **17/17 unit tests** (`contracts/otc/src/test.rs`): escrow lock, duplicate
+- **20/20 unit tests** (`contracts/otc/src/test.rs`): escrow lock, duplicate
   nullifier, deadline, capacity (N=8), winner payout + refunds, bad clearing,
-  double-settle, no-bids, cancel-before-deadline, unknown RFQ, on-chain Poseidon.
+  double-settle, no-bids, cancel-before-deadline, unknown RFQ, on-chain Poseidon,
+  the `band_min` reserve (single-bid clears rejected), and the claimable-refund
+  fallback (a blocked refund is credited, then `claim()`-ed once the bidder can
+  receive again).
 - **On-chain:** both verifiers return `true` for valid proofs; a tampered
   clearing-price public input is rejected (`Error(Contract,#0)`).
 - **Live e2e** (`scripts/e2e-testnet.mjs`): post → 3 sealed bids → Vickrey settle.
@@ -53,13 +63,7 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
   the maker; a two-asset atomic DvP swap is future work.
 - **Trusted setup.** phase-1 is a local Powers-of-Tau (2^14); production needs the
   Hermez ceremony + multi-party phase-2.
-- **Reserve price.** A single-bidder auction clears at 0 (Vickrey second price);
-  a production desk would add a maker reserve. `settle` is also gated on maker auth
-  + status, *not* the deadline, so a maker can settle as soon as bids land (cutting
-  off later competition) — bidders get no on-chain run-to-deadline guarantee.
-- **Refund batching (DoS).** `settle` and `cancel_expired` refund every bidder in a
-  single transaction; one failing `token.transfer` reverts the whole batch. A
-  bidder who removes their USDC trustline after escrowing (or an issuer-frozen
-  account) can therefore block settlement *and* the cancel cleanup, locking escrow.
-  Bounded today by the curated ASP allow-list, but a production desk needs
-  pull-payment (per-bidder claim) instead of push refunds.
+- **Early settle.** `settle` is gated on maker auth + status, *not* the deadline, so
+  a maker can settle as soon as bids land (cutting off later competition) — bidders
+  get no on-chain run-to-deadline guarantee. (The related single-bidder-clears-at-0
+  flaw and the refund-batching DoS are now **fixed** — see properties 7 and 9.)

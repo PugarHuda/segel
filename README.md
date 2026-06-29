@@ -126,7 +126,7 @@ spoofed identity, or a different bid set — any mismatch fails verification.
 - **Live Reflector oracle (real cross-contract).** `mark_price("XLM")` invokes the
   Reflector SEP-40 testnet feed on-chain and returns the live USD mark (~$0.176);
   `mark_price("USDC")` ≈ $1.001. Surfaced live in the Audit tab.
-- **17/17 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
+- **20/20 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
   (`scripts/e2e-testnet.mjs`): post → 3 sealed bids → Vickrey settle on testnet.
 
 ## Still honestly simplified
@@ -182,7 +182,7 @@ node scripts/e2e-testnet.mjs
 
 **On-chain** (contracts already deployed — IDs above):
 - Build a verifier WASM: `bash scripts/wsl-build-verifier.sh circuits/build/<name>_vk.json <out>.wasm`
-- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 17/17)
+- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 20/20)
 - Deploy: `bash scripts/wsl-deploy.sh`
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`

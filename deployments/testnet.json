@@ -35,7 +35,14 @@
     "previousContractIds": ["CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR", "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3"],
     "wasm": "contracts/otc/",
     "constructor": ["admin", "token", "bid_verifier", "auction_verifier", "asp_root", "oracle"],
-    "functions": ["post_rfq", "commit_bid", "settle", "cancel_expired", "set_verifiers", "set_admin", "set_oracle", "set_token", "upgrade", "mark_price", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "balance", "admin", "verifiers", "oracle", "token_address"],
+    "functions": ["post_rfq", "commit_bid", "settle", "cancel_expired", "claim", "claimable", "set_verifiers", "set_admin", "set_oracle", "set_token", "upgrade", "mark_price", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "balance", "admin", "verifiers", "oracle", "token_address"],
+    "hardeningUpgrade": {
+      "note": "Post-audit security hardening applied live via upgrade() — SAME contract id, no redeploy. Fixes: reserve=band_min (a lone bidder can no longer clear at 0); un-griefable refunds (settle/cancel use a non-reverting transfer and credit a claimable balance on failure, so a bidder who drops their USDC trustline can't lock escrow) + a claim() pull entrypoint; checks-effects-interactions (status written before any transfer).",
+      "wasmHash": "5001f856dd4611329b87b260fe18c461d3891ee6adda01e9dbbeef51f5c90151",
+      "uploadTx": "https://stellar.expert/explorer/testnet/tx/845a26953f219265dbb749b9e8dc70c0101162f05574a4409d0e4a5a66841657",
+      "upgradeTx": "https://stellar.expert/explorer/testnet/tx/d5811f028f9b15b404fe784af69a7538d333149fc2556bc4c0db031fddd42677",
+      "postUpgradeE2eSettle": "https://stellar.expert/explorer/testnet/tx/f7b539d31fdb923b1b7ea5bf2c6f539fe73fe0e36c69c7710db1c05d54a411fb"
+    },
     "tokenMigration": {
       "note": "Migrated the desk to Circle's real testnet USDC WITHOUT a redeploy — proves the new upgrade() path. Same contract id, live site unaffected.",
       "from": "GC7SWGHR… project-issued mock USDC SAC",
@@ -55,8 +62,10 @@
       "proofOfFunds": "commit_bid pins availBal = band_max (the escrow) and then transfers that escrow from the bidder; the transfer must succeed, so the bidder provably holds >= band_max >= bid (the hidden bid is bound to escrowed funds)",
       "vickreyBinding": "settle builds the auction public inputs from the RECORDED commitments (padded to N=8 with Poseidon(0,0,0)), so the proof is over exactly the on-chain sealed set",
       "nullifier": "one bid per identity per RFQ (Sybil resistance), identity hidden",
+      "reserve": "settle requires clearing >= band_min, so a single-bidder auction (Vickrey runner-up = padded 0) can no longer clear at 0",
+      "refundSafety": "settle/cancel_expired refund via a NON-reverting transfer; a failed refund (e.g. a bidder dropped their USDC trustline) is credited as a claimable balance instead of bricking the whole batch — pulled later via claim(). One bidder cannot DoS settlement or the cancel cleanup",
       "adminControls": "admin-gated set_verifiers (rotate a buggy verifier — previously immutable), set_admin (hand over the role), set_oracle (swap the price feed), set_token (migrate the escrow asset), and upgrade (in-place WASM upgrade, keeps the contract id); instance-storage TTL is extended on every state change so config cannot expire",
-      "unitTests": "17/17 passing (contracts/otc/src/test.rs)"
+      "unitTests": "20/20 passing (contracts/otc/src/test.rs)"
     }
   },
   "e2eLive": {
