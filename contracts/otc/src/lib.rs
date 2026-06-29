@@ -337,7 +337,8 @@ impl Otc {
     /// Settle: verify ONE `auctionResult` proof that `winner`/`clearing` are the
     /// correct Vickrey outcome over exactly the recorded commitments, then move
     /// the money: winner pays `clearing` to the maker, gets `band_max - clearing`
-    /// back, every loser is refunded `band_max`. Losing bids never appear.
+    /// back, every loser is refunded `band_max`. Losing bid *amounts* never
+    /// appear (winner address + clearing price are public).
     pub fn settle(
         env: Env,
         rfq_id: u32,

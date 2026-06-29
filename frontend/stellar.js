@@ -104,7 +104,8 @@ export async function bidsOf(rfqId) {
 
 export async function balanceOf(address) {
   const r = await simulate(USDC_SAC, "balance", addrScVal(address));
-  return r.ok ? r.value.toString() : "0";
+  if (!r.ok) throw new Error("balance read failed"); // let callers/health distinguish a failed read from a real 0
+  return r.value.toString();
 }
 
 // field(addr) = keccak256(addr ScVal XDR) mod r — matches the contract's addr_field.
@@ -285,7 +286,7 @@ export async function healthCheck() {
   try { const p = await poseidonHash(1, 2); const ok = p.toLowerCase().startsWith("0x115cc0f5"); rows.push(["Poseidon host fn", ok ? "matches circomlib" : "mismatch", ok]); }
   catch { rows.push(["Poseidon host fn", "unreachable", false]); }
   // 5. USDC SAC escrow held by the OTC contract (real balance read)
-  try { const b = await balanceOf(OTC); rows.push(["USDC SAC escrow", b === "0" ? "0 held (no open bids)" : `${b} stroops held`, true]); }
+  try { const b = await balanceOf(OTC); rows.push(["USDC SAC escrow", b === "0" ? "0 held (no open bids)" : `${(Number(b) / 1e7).toFixed(2)} USDC held`, true]); }
   catch { rows.push(["USDC SAC escrow", "unreadable", false]); }
   // 6. Reflector oracle live mark — real cross-contract read (OTC.mark_price -> Reflector)
   try { const x = await markPrice("XLM"); rows.push(["Reflector XLM mark", x != null ? `$${x.toFixed(4)}` : "no price", x != null]); }

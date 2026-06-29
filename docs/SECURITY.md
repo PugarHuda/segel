@@ -6,6 +6,11 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
 
 1. **Bid confidentiality.** A bid appears on-chain only as `Poseidon(bid, nonce,
    addr)`. The amount is never published; it is proved in-band in zero-knowledge.
+   What's hidden is the bid **amount** and (via the ASP) each bidder's **KYC
+   identity** — *not* participation: bidder addresses and the winner's address are
+   public on-chain (`settle` takes `winner` and emits `(winner, clearing)`), and
+   refund sizes differ by role, so an observer can tell who won. Hiding the winner
+   too would need a different settlement design.
 2. **No fake winner / price.** Settlement requires an `auctionResult` proof that
    the winner is the max bid and the clearing price is the second-highest, over
    exactly the recorded commitments. The contract cannot be told a wrong outcome.
@@ -49,4 +54,12 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
 - **Trusted setup.** phase-1 is a local Powers-of-Tau (2^14); production needs the
   Hermez ceremony + multi-party phase-2.
 - **Reserve price.** A single-bidder auction clears at 0 (Vickrey second price);
-  a production desk would add a maker reserve.
+  a production desk would add a maker reserve. `settle` is also gated on maker auth
+  + status, *not* the deadline, so a maker can settle as soon as bids land (cutting
+  off later competition) — bidders get no on-chain run-to-deadline guarantee.
+- **Refund batching (DoS).** `settle` and `cancel_expired` refund every bidder in a
+  single transaction; one failing `token.transfer` reverts the whole batch. A
+  bidder who removes their USDC trustline after escrowing (or an issuer-frozen
+  account) can therefore block settlement *and* the cancel cleanup, locking escrow.
+  Bounded today by the curated ASP allow-list, but a production desk needs
+  pull-payment (per-bidder claim) instead of push refunds.

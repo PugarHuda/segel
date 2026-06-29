@@ -1,7 +1,7 @@
 # Segel
 
 > **Confidential sealed-bid OTC desk on Stellar.**
-> Bids sealed. Settlement proven. Losers never seen.
+> Bids sealed. Settlement proven. Losing amounts never revealed.
 
 Segel is an on-chain **over-the-counter (OTC) desk** for large trades on Stellar
 where **bid amounts are cryptographically sealed**, the **fair clearing price is
@@ -66,29 +66,33 @@ better. Segel resolves this with zero-knowledge.
 2. **Settling.** The prover takes all bid openings and produces ONE
    **auctionResult** proof that the announced winner and the **second-highest
    price** (Vickrey) are correct over exactly the recorded commitments. The only
-   public outputs are the winner and the clearing price. **Every losing bid stays
-   secret.** The contract verifies the proof, then pays the winner's clearing
+   public outputs are the winner and the clearing price. **Every losing bid
+   _amount_ stays secret** (the winner's address and the clearing price are
+   public on-chain; what stays hidden is the losing numbers and — via the ASP —
+   every bidder's KYC identity). The contract verifies the proof, then pays the winner's clearing
    price to the maker, refunds the winner's surplus, and refunds every loser.
 
 This is impossible without ZK (or a trusted operator / heavy MPC). The proofs are
 **Groth16 over BN254**, verified on-chain with Stellar's native BN254 host
-functions (Protocol 25/26) and Poseidon (Protocol 25).
+functions (Protocol 25/26); commitments use a Poseidon built on those same
+BN254 field ops (no Poseidon host primitive exists — we hand-roll it, bit-identical to circomlib).
 
 ---
 
-## Deep Stellar / ZK integration (every primitive load-bearing)
+## Deep Stellar / ZK integration (core primitives load-bearing)
 
-Nothing here is namechecked. Each item, if removed, breaks the desk:
+Nothing here is namechecked. Each **core** item, if removed, breaks the desk;
+the oracle and wallet are real, working integrations but advisory/optional:
 
 | Primitive / tool | Where it does real work |
 |---|---|
 | **BN254 pairing** (P25) | verifies both Groth16 proofs on-chain |
 | **BN254 MSM** (P26) | accumulates the public-input vector inside the verifier |
 | **BN254 scalar-field arithmetic** (P26) | the contract builds the public-input `Vec<Bn254Fr>` itself (binding) |
-| **Poseidon host function** (P25) | `poseidon_hash(a,b)` exposed on-chain; matches circomlib exactly — the commitment scheme is verifiable on-chain, not asserted |
+| **Poseidon on-chain** (BN254 host ops) | `poseidon_hash(a,b)` — a circomlib Poseidon hand-rolled on Soroban's BN254 field host ops (there is no Poseidon host primitive), bit-identical to circomlibjs; lets the commitment scheme be verified on-chain, not just asserted |
 | **Soroban** | the whole desk: RFQ state, commit-set, escrow custody, settlement |
 | **Circle USDC SAC** | escrow + settlement in **Circle's canonical testnet USDC** (issuer GBBD47IF…) via its SAC; winner pays clearing to maker, losers refunded |
-| **Reflector oracle (SEP-40)** | `mark_price(symbol)` does a real cross-contract `lastprice()` read of the Reflector testnet feed — a live market mark (XLM/USDC USD price) to sanity-check the sealed auction against the market; basis for a future oracle-derived maker reserve |
+| **Reflector oracle (SEP-40)** | _Advisory_ — `mark_price(symbol)` does a real cross-contract `lastprice()` read of the Reflector testnet feed (a live XLM/USDC mark), but settlement does **not** yet consume it; it's the basis for a future oracle-derived maker reserve |
 | **Freighter / embedded key** | real signing of `post_rfq` / `commit_bid` / `settle` |
 
 The contract's **binding** property is the security crux: it never accepts a

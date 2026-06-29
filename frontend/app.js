@@ -99,7 +99,7 @@ function sidebar() {
         <div style="font-size:8.5px;color:#6a6e7e;letter-spacing:1px;margin-top:2px">STELLAR · TESTNET</div></div></div>
     <div class="side-rpc" style="display:flex;align-items:center;gap:7px;background:#131318;border-radius:8px;padding:8px 10px;margin-bottom:16px">
       <span style="width:7px;height:7px;border-radius:50%;background:#4cae8a;flex-shrink:0"></span>
-      <span style="font-size:9.5px;color:#8a8e9e;letter-spacing:.5px">RPC ONLINE · soroban</span></div>
+      <span style="font-size:9.5px;color:#8a8e9e;letter-spacing:.5px">soroban · testnet RPC</span></div>
     <button data-nav="create" class="side-newbtn" style="display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff;border:none;border-radius:9px;padding:11px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:16px"><span class="msi" style="font-size:17px">add</span>New RFQ</button>
     <div class="side-nav">${items}</div>
     ${walletBox}
@@ -188,8 +188,8 @@ function viewCreate() {
     </div>
     <div style="background:#0b0b0e;border-radius:14px;padding:18px 20px;display:flex;gap:14px;align-items:flex-start;margin-bottom:18px">
       <span class="msi" style="font-size:22px;color:#4cae8a;flex-shrink:0">gpp_good</span>
-      <div><div style="font-size:11px;letter-spacing:1px;color:#7e8294;margin-bottom:6px">INDISTINGUISHABLE SETTLEMENT</div>
-      <div style="font-size:11.5px;color:#c2c7d6;line-height:1.6">Every settle posts the same on-chain status. A winning fill and a refunded loser look identical to observers — only the winner learns they won, proven in zero-knowledge.</div></div></div>
+      <div><div style="font-size:11px;letter-spacing:1px;color:#7e8294;margin-bottom:6px">WHAT STAYS PRIVATE</div>
+      <div style="font-size:11.5px;color:#c2c7d6;line-height:1.6">Losing bid amounts are never revealed — on-chain or to the public — and every bidder's KYC identity stays hidden behind the ASP allow-list. The winner's address and the clearing price are public; the losing numbers are proven correct without being shown.</div></div></div>
     <div style="border:1px solid #edf0f7;border-radius:14px;padding:20px;max-width:560px">
       <div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:14px">${m === 0 ? "DIRECT OTC" : "RFQ AUCTION"} · DETAILS</div>
       <div class="g2" style="gap:13px">
@@ -218,7 +218,7 @@ function viewActivity() {
       <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">${esc(e.title)}</div><div style="font-size:10.5px;color:#8a8f9c">${esc(e.detail)}</div></div>
       <div style="text-align:right;flex-shrink:0"><div style="font-size:10px;color:#9aa0b2">${e.time}</div>${e.txHash ? `<a href="${chain.txExplorer(e.txHash)}" target="_blank" style="font-size:9.5px;text-decoration:none">${e.tx} ↗</a>` : ""}</div></div>`;
   }).join("");
-  return `<div>${header("SEGEL · ON-CHAIN ACTIVITY", "My Activity")}
+  return `<div>${header("SEGEL · THIS SESSION", "My Activity")}
     <div style="display:flex;flex-direction:column;gap:8px;max-width:780px;margin-top:14px">${S.events.length ? rows : `<div style="padding:30px;text-align:center;color:#aab0c0;font-size:12px">No activity yet. Post an RFQ or seal a bid.</div>`}</div></div>`;
 }
 
@@ -342,7 +342,7 @@ function modalEl() {
           <div style="font-size:10.5px;color:#8a8f9c;margin-bottom:9px">COMMITMENT · Poseidon(bid, nonce, addr)</div>
           <div style="font-size:10.5px;color:#5d6273;word-break:break-all;line-height:1.5;margin-bottom:11px">${m.commit ? esc(m.commit.slice(0, 48)) + "…" : "computed locally when you seal"}</div>
           ${check(inBand, inBand ? "Bid is in band — range proof will pass" : "Bid is outside the band")}
-          ${check(true, "Proof-of-funds: bid ≤ your on-chain balance")}
+          ${check(true, "Proof-of-funds: bid ≤ escrow (band max), locked on submit")}
           ${check(true, "Allowlist membership proven (Merkle, identity hidden)")}
           ${check(true, "Nullifier fresh — one bid per identity per RFQ")}
         </div>
