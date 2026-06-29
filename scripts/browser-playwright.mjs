@@ -34,6 +34,12 @@ try {
   const boot = await innerText(page);
   ok(/Active RFQs/.test(boot), "desk renders 'Active RFQs'");
   ok(/\d+ live/.test(boot), `live RFQ count shown (${(boot.match(/(\d+) live/) || [])[1]} live)`);
+  // money-logic self-check: USDC<->stroops round-trip must be exact
+  const conv = await page.evaluate(async () => {
+    const c = await import("./stellar.js");
+    return { s: c.toStroops("4.20").toString(), u: c.toUsdc("50000000"), rt: c.toUsdc(c.toStroops("3.33")) };
+  });
+  ok(conv.s === "42000000" && conv.u === 5 && Math.abs(conv.rt - 3.33) < 1e-9, `USDC↔stroops exact (4.20→${conv.s}, 50000000→${conv.u})`);
 
   // ---- Case 2: navigate every view by clicking the sidebar ----
   console.log("[2] navigation (real clicks through every view)");
@@ -119,13 +125,16 @@ try {
 
   // ---- Case 8 (opt-in): real on-chain RFQ post via clicks ----
   if (process.env.E2E_WRITE === "1") {
-    console.log("[8] WRITE: posting a real RFQ on-chain via the UI");
+    console.log("[8] WRITE: posting a real 3–5 USDC RFQ on-chain via the UI (demo seed)");
     await page.click('[data-nav="create"]');
-    await page.fill('[data-form="min"]', "3000");
-    await page.fill('[data-form="max"]', "5000");
-    await page.fill('[data-form="deadlineMin"]', "60");
+    await page.fill('[data-form="min"]', "3");
+    await page.fill('[data-form="max"]', "5");
+    await page.fill('[data-form="deadlineMin"]', "10080"); // 7-day deadline: stays open for judges
     await page.click('[data-act="post"]');
     ok(await hasText(page, /RFQ posted/, 60000), "real RFQ posted on-chain via UI clicks");
+    await page.click('[data-nav="active"]');
+    await hasText(page, /3\.00/, 20000); // wait for the post-refresh to render the new row
+    ok(/3\.00.{0,4}5\.00/.test(await innerText(page)), "new RFQ displays band as 3.00–5.00 USDC (decimal scaling)");
   } else {
     console.log("[8] WRITE flow skipped (set E2E_WRITE=1 to post a real RFQ; on-chain writes covered by e2e-testnet.mjs)");
   }

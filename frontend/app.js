@@ -10,6 +10,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const short = (a) => (a ? a.slice(0, 4) + "…" + a.slice(-4) : "—");
 const fmt = (n) => Number(n).toLocaleString("en-US");
+const usd = (stroops) => Number(chain.toUsdc(stroops)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); // stroops -> "1,234.56"
 
 const TOK = {
   XLM: { bg: "#e6ecfb", fg: "#3a4a8a" }, USDC: { bg: "#e6f5ee", fg: "#2f9b6e" },
@@ -27,7 +28,7 @@ const STATUS = {
 const S = {
   view: "active", connected: false, address: null, balance: "0",
   rfqs: [], events: [], loading: true, modal: null, toast: null,
-  form: { pair: "XLM / USDC", side: "SELL", mode: 1, min: "3000", max: "5000", deadlineMin: "60" },
+  form: { pair: "XLM / USDC", side: "SELL", mode: 1, min: "3", max: "5", deadlineMin: "60" },
   createMode: 1, health: null,
 };
 
@@ -87,7 +88,7 @@ function sidebar() {
           <span style="font-size:9px;color:#c2a45a;border:1px solid #5a4e2e;border-radius:5px;padding:2px 6px">${chain.usingWallet() ? "FREIGHTER" : "DEMO KEY"}</span>
           <button data-act="disconnect" title="Disconnect" class="msi" style="background:none;border:none;color:#6a6e7e;cursor:pointer;font-size:14px;padding:0">logout</button>
         </div>
-        <div class="wbal" style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:16px">${fmt(S.balance)} <span style="font-size:10px;color:#8a8e9e">USDC</span></div>
+        <div class="wbal" style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:16px">${usd(S.balance)} <span style="font-size:10px;color:#8a8e9e">USDC</span></div>
         <div style="font-size:10px;color:#8a8e9e;margin-top:2px">${short(S.address)}</div>
       </div>`
     : `<button data-act="connect" class="side-wallet" style="background:#fff;color:#0b0b0e;border:none;border-radius:9px;padding:11px 16px;font-size:12px;font-weight:600;cursor:pointer">Connect wallet</button>`;
@@ -154,7 +155,7 @@ function viewActive() {
       </div>
       <span style="font-size:9.5px;font-weight:600;color:${r.mode === 0 ? "#3a4a8a" : "#7a5fae"}">${r.mode === 0 ? "DIRECT" : "RFQ"}</span>
       <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#5d6273">${short(r.maker)}${mine ? `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eef1fb;color:#6c7fe0">YOU</span>` : ""}</div>
-      <div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:#5d6273"><span class="msi" style="font-size:13px;color:#b6bdd0">lock</span>${fmt(r.bandMin)}–${fmt(r.bandMax)}</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:#5d6273"><span class="msi" style="font-size:13px;color:#b6bdd0">lock</span>${usd(r.bandMin)}–${usd(r.bandMax)}</div>
       <span style="font-weight:700;font-size:13px;color:#14151a">${r.bids}</span>
       <span><span style="font-size:9.5px;font-weight:600;padding:3px 9px;border-radius:6px;background:${st.bg};color:${st.c}">${st.l}</span></span>
       <div style="display:flex;justify-content:flex-end">${act ? `<button class="rowact" data-act="${act}" style="font-size:10.5px;font-weight:600;border:none;cursor:pointer;padding:7px 12px;border-radius:7px;background:${bg};color:${col}">${label}</button>` : `<span style="font-size:10px;color:${expired ? "#c98a2e" : "#9aa0b2"}">${exp}</span>`}</div>
@@ -232,7 +233,7 @@ function viewPortfolio() {
     <div style="display:flex;flex-direction:column;gap:7px">${arr.length ? arr.map(sub).join("") : `<div style="font-size:10.5px;color:#aab0c0;text-align:center;padding:14px;background:#fbfcff;border:1px dashed #e2e7f2;border-radius:9px">None yet</div>`}</div></div>`;
   return `<div>${header("SEGEL · YOUR POSITIONS", "Portfolio")}
     <div class="g3" style="margin:16px 0 20px">
-      ${card("AVAILABLE", fmt(S.balance), "dark", "USDC")}
+      ${card("AVAILABLE", usd(S.balance), "dark", "USDC")}
       ${card("YOUR RFQS", mine.length, "p", "posted")}
       ${card("YOUR SEALED BIDS", myBids.reduce((a, r) => a + openingsFor(r.id).length, 0), "g", "identity private")}
     </div>
@@ -287,7 +288,7 @@ function viewFaucet() {
       <span class="msi" style="font-size:40px;color:#6c7fe0">water_drop</span>
       <div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:20px;margin:10px 0 6px">Testnet Faucet</div>
       <div style="font-size:11.5px;color:#8a8f9c;line-height:1.6;margin-bottom:20px">${blurb}</div>
-      <div style="background:#fff;border:1px solid #edf0f7;border-radius:10px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:#9aa0b2">Current balance</span><span style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:16px">${fmt(S.balance)} USDC</span></div>
+      <div style="background:#fff;border:1px solid #edf0f7;border-radius:10px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:#9aa0b2">Current balance</span><span style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:16px">${usd(S.balance)} USDC</span></div>
       <button data-act="dofaucet" style="width:100%;font-size:12.5px;font-weight:600;cursor:pointer;padding:13px;border-radius:10px;border:none;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff">${label}</button>
     </div></div>`;
 }
@@ -327,14 +328,15 @@ function modalEl() {
     const r = m.rfq, [sT, bT] = pairSyms(r.pair);
     if (m.proving) return wrap(provingCard(m.stage));
     const amt = m.amount, valid = amt !== "" && !isNaN(+amt);
-    const inBand = valid && +amt >= +r.bandMin && +amt <= +r.bandMax;
+    const bMin = chain.toUsdc(r.bandMin), bMax = chain.toUsdc(r.bandMax); // band in USDC
+    const inBand = valid && +amt >= bMin && +amt <= bMax;
     return wrap(`<div style="width:440px;max-width:100%;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 40px 90px -30px rgba(20,21,40,.6);animation:segelPop .18s ease-out">
       <div style="padding:16px 22px;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff"><div><div style="font-size:10px;opacity:.85;letter-spacing:1px">SEAL A BID · RFQ-${String(r.id).padStart(3, "0")}</div><div style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:18px;margin-top:2px">${esc(r.pair)}</div></div><button data-act="closemodal" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">×</button></div>
       <div style="padding:20px 22px">
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a8f9c;margin-bottom:8px"><span>your sealed bid</span><span>band ${fmt(r.bandMin)}–${fmt(r.bandMax)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a8f9c;margin-bottom:8px"><span>your sealed bid (USDC)</span><span>band ${usd(r.bandMin)}–${usd(r.bandMax)}</span></div>
         <input data-bid="amt" value="${esc(amt)}" inputmode="decimal" style="width:100%;font-family:'Pixelify Sans',monospace;font-weight:700;font-size:30px;text-align:center;border:1px solid ${inBand ? "#cdd6f7" : "#e8b0b0"};border-radius:11px;padding:8px;margin-bottom:12px;color:${inBand ? "#14151a" : "#b05050"}" />
-        <input type="range" data-bid="slider" min="${r.bandMin}" max="${r.bandMax}" step="1" value="${inBand ? amt : r.bandMin}" />
-        <div style="display:flex;justify-content:space-between;margin-top:7px;font-size:10.5px;color:#9aa0b2"><span>min ${fmt(r.bandMin)}</span><span>max ${fmt(r.bandMax)}</span></div>
+        <input type="range" data-bid="slider" min="${bMin}" max="${bMax}" step="0.01" value="${inBand ? amt : bMin}" />
+        <div style="display:flex;justify-content:space-between;margin-top:7px;font-size:10.5px;color:#9aa0b2"><span>min ${usd(r.bandMin)}</span><span>max ${usd(r.bandMax)}</span></div>
         <div style="margin-top:16px;background:#f7f8fc;border-radius:11px;padding:13px">
           <div style="font-size:10.5px;color:#8a8f9c;margin-bottom:9px">COMMITMENT · Poseidon(bid, nonce, addr)</div>
           <div style="font-size:10.5px;color:#5d6273;word-break:break-all;line-height:1.5;margin-bottom:11px">${m.commit ? esc(m.commit.slice(0, 48)) + "…" : "computed locally when you seal"}</div>
@@ -452,29 +454,30 @@ function openBid(id) {
   if (!S.connected) return toast("Connect a wallet first", "!", "#3a2a14", "#ffe0b0");
   const r = S.rfqs.find((x) => x.id === id);
   if (!r) return;
-  S.modal = { type: "bid", rfq: r, amount: String(Math.round((+r.bandMin + +r.bandMax) / 2)), commit: null, proving: false };
+  S.modal = { type: "bid", rfq: r, amount: ((chain.toUsdc(r.bandMin) + chain.toUsdc(r.bandMax)) / 2).toFixed(2), commit: null, proving: false };
   render();
 }
 
 async function sealBid() {
   const m = S.modal, r = m.rfq;
-  const bid = m.amount;
-  if (isNaN(+bid) || +bid < +r.bandMin || +bid > +r.bandMax) return;
+  const bid = m.amount; // human USDC
+  if (isNaN(+bid) || +bid < chain.toUsdc(r.bandMin) || +bid > chain.toUsdc(r.bandMax)) return;
+  const bidStroops = chain.toStroops(bid); // circuit + commitment work in token stroops
   try {
     m.proving = true; m.stage = "Preparing witness…"; render();
     const bidderField = chain.addrField(S.address);
-    const availBal = r.bandMax; // proof-of-funds pinned to escrow (= band max); the escrow transfer proves the funds
+    const availBal = r.bandMax; // proof-of-funds pinned to escrow (= band max, stroops); the escrow transfer proves the funds
     const existing = openingsFor(r.id).length;
     const aspIndex = existing % 16; // a fresh ASP identity per bid from this browser
     const nonce = rnd();
     m.stage = "Generating bidValidity proof…"; render();
     const { proof, commit, nullifier } = await prover.proveBid({
-      bid, nonce, bidderField, rfqId: r.id, bandMin: r.bandMin, bandMax: r.bandMax, availBal, aspIndex,
+      bid: bidStroops, nonce, bidderField, rfqId: r.id, bandMin: r.bandMin, bandMax: r.bandMax, availBal, aspIndex,
     });
     m.stage = "Submitting commit_bid on-chain…"; render();
     const res = await chain.commitBid({ rfqId: r.id, commit, nullifier, proof });
     if (!res.ok) { m.proving = false; render(); return toast(res.error, "✕", "#3a1414", "#ffd2d2"); }
-    saveOpening(r.id, { bid: String(bid), nonce, bidderField, bidderAddr: S.address, commit, aspIndex });
+    saveOpening(r.id, { bid: String(bidStroops), nonce, bidderField, bidderAddr: S.address, commit, aspIndex });
     logEvent("BID", "Sealed bid", `RFQ-${String(r.id).padStart(3, "0")} · amount hidden`, res.hash);
     S.modal = null;
     toast("Bid sealed & verified on-chain ✓", "✓");
@@ -498,8 +501,8 @@ async function doSettle(id) {
     const res = await chain.settle({ rfqId: id, proof: out.proof, winner: winnerAddr, clearing: out.clearing });
     S.modal = null;
     if (!res.ok) return toast(res.error, "✕", "#3a1414", "#ffd2d2");
-    logEvent("SETTLE", "Settled (Vickrey)", `RFQ-${String(id).padStart(3, "0")} · clearing ${fmt(out.clearing)} · losers hidden`, res.hash);
-    toast(`Settled — clearing price ${fmt(out.clearing)} ✓`, "✓");
+    logEvent("SETTLE", "Settled (Vickrey)", `RFQ-${String(id).padStart(3, "0")} · clearing ${usd(out.clearing)} USDC · losers hidden`, res.hash);
+    toast(`Settled — clearing price ${usd(out.clearing)} USDC ✓`, "✓");
     await refresh(); await refreshBalance();
   } catch (e) { S.modal = null; render(); toast(e.message || "settle failed", "✕", "#3a1414", "#ffd2d2"); }
 }

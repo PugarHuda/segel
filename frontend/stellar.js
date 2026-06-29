@@ -29,6 +29,13 @@ const DEMO_SECRET = "SALVZ6CF5CLAPV2FBPJ4SSW3QWCB6N2IPY4AEHQH4LKNWWNNVIGHN2KQ";
 export const DEMO_ADDRESS = Sdk.Keypair.fromSecret(DEMO_SECRET).publicKey();
 const SOURCE = DEMO_ADDRESS; // used only to build read-only simulation txs
 
+// Circle's USDC SAC uses 7 decimals. On-chain, the desk's amounts (size bands,
+// escrow, bids, clearing) are integer token stroops; the UI speaks human USDC and
+// converts at this edge so a "5.00 USDC" band escrows 50_000_000 stroops on-chain.
+export const USDC_DECIMALS = 10_000_000;
+export const toUsdc = (stroops) => Number(BigInt(stroops)) / USDC_DECIMALS;
+export const toStroops = (usdc) => BigInt(Math.round(Number(usdc) * USDC_DECIMALS));
+
 const server = new Sdk.rpc.Server(RPC);
 
 async function simulate(contractId, method, ...args) {
@@ -157,8 +164,8 @@ export async function postRfq({ pair, side, mode, bandMin, bandMax, deadline }) 
       pair: pair.slice(0, 9),
       side: side.slice(0, 9),
       mode: Number(mode),
-      band_min: BigInt(bandMin),
-      band_max: BigInt(bandMax),
+      band_min: toStroops(bandMin), // UI passes human USDC; contract stores stroops
+      band_max: toStroops(bandMax),
       deadline: BigInt(deadline),
     });
     const res = await at.signAndSend();

@@ -84,8 +84,8 @@ async function main() {
 
   const c = await client();
 
-  // 1. post RFQ
-  const bandMin = 3000n, bandMax = 5000n;
+  // 1. post RFQ — amounts in token stroops (Circle USDC, 7 decimals): 3.00–5.00 USDC
+  const bandMin = 30000000n, bandMax = 50000000n;
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
   const { res: postRes, at: postAt } = await send(() => c.post_rfq({
     maker: ADDR, pair: "XLMUSDC", side: "SELL", mode: 1,
@@ -94,8 +94,8 @@ async function main() {
   const rfqId = postAt.result;
   console.log(`\n[1] post_rfq -> RFQ #${rfqId}  ${tx(postRes.sendTransactionResponse?.hash)}`);
 
-  // 2. three sealed bids (distinct ASP identities)
-  const amounts = [4200n, 4900n, 3800n];
+  // 2. three sealed bids (distinct ASP identities) — 4.20, 4.90, 3.80 USDC
+  const amounts = [42000000n, 49000000n, 38000000n];
   const openings = [];
   for (let i = 0; i < amounts.length; i++) {
     const bid = amounts[i], nonce = (123456789n + BigInt(i) * 99n).toString();
