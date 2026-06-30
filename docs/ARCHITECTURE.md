@@ -53,6 +53,12 @@ never changes.
 the payment; `cancel_expired` returns it to the maker. The base asset must differ
 from the quote token (enforced). Delivery is non-reverting: a winner who can't
 receive is credited a base-claimable (`claim_base`), so it never bricks settlement.
+(The DvP lot is passed as one `BaseSpec {token, amount, symbol}` so `post_rfq_dvp`
+stays within Soroban's 10-argument cap once `taker` is added.)
+
+**Directed Direct OTC.** `post_rfq_dvp` takes an optional `taker`: if set, only that
+address may bid (`commit_bid` rejects anyone else, Error #15); absent = open to
+anyone. `taker(rfq_id)` view. Makes Direct OTC a real bilateral trade.
 
 **Un-griefable refunds.** Loser refunds use a non-reverting transfer; a failed one is
 credited as `claimable` (pulled via `claim`) rather than reverting the whole batch.

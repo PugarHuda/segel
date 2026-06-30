@@ -103,7 +103,8 @@ async function main() {
   const { res: postRes, at: postAt } = await send(() => c.post_rfq_dvp({
     maker: ADDR, pair: "XLMUSDC", side: "SELL", mode: 1,
     band_min: bandMin, band_max: bandMax, deadline,
-    base_token: XLM_SAC, base_amount: BASE, base_symbol: "XLM", // base asset's Reflector symbol (oracle guard)
+    base: { token: XLM_SAC, amount: BASE, symbol: "XLM" }, // DvP lot (symbol feeds the oracle guard)
+    taker: null, // open to anyone (not a directed Direct-OTC RFQ)
   }), "post_rfq_dvp");
   const rfqId = postAt.result;
   const deskBaseAfterPost = BigInt(await sacBalanceOf(XLM_SAC, OTC));

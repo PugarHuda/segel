@@ -26,7 +26,8 @@ const deadline = BigInt(Math.floor(Date.now() / 1000) + 7 * 24 * 3600); // 7 day
 const at = await c.post_rfq_dvp({
   maker: kp.publicKey(), pair: "XLMUSDC", side: "SELL", mode: 1,
   band_min: 30000000n, band_max: 50000000n, deadline,
-  base_token: XLM_SAC, base_amount: 200000000n, base_symbol: "XLM", // 20 XLM delivery lot (+ oracle symbol)
+  base: { token: XLM_SAC, amount: 200000000n, symbol: "XLM" }, // 20 XLM delivery lot (+ oracle symbol)
+  taker: null, // open to anyone
 });
 const res = await at.signAndSend();
 console.log(`posted RFQ #${at.result} -> https://stellar.expert/explorer/testnet/tx/${res.sendTransactionResponse?.hash}`);

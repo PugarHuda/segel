@@ -110,6 +110,16 @@ pub struct BaseLeg {
     pub amount: i128,
 }
 
+/// Input bundle for a DvP sell-side lot at post time (keeps post_rfq_dvp within
+/// Soroban's 10-argument limit). Stored split as BaseLeg{token,amount} + BaseSym.
+#[contracttype]
+#[derive(Clone)]
+pub struct BaseSpec {
+    pub token: Address,
+    pub amount: i128,
+    pub symbol: Symbol,
+}
+
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -128,6 +138,7 @@ pub enum OtcError {
     AlreadySettled = 12,
     NothingToClaim = 13,
     OutOfOracleBand = 14,
+    NotInvitedTaker = 15,
 }
 
 #[contracttype]
@@ -149,6 +160,7 @@ enum DataKey {
     BaseSym(u32),                  // DvP base asset's oracle symbol (for the price guard)
     BaseClaimable(u32, Address),   // base lot a delivery transfer couldn't push (pull via claim_base)
     PriceGuardBps,                 // admin oracle circuit-breaker tolerance; 0 = off
+    Taker(u32),                    // Direct OTC invited counterparty; absent = open to anyone
 }
 
 #[contract]
@@ -267,6 +279,11 @@ impl Otc {
     /// `clearing` is the TOTAL quote (USDC) paid for the WHOLE lot — bidders bid a
     /// total price for the lot, not a per-unit rate. `base_symbol` is the lot asset's
     /// Reflector symbol (e.g. "XLM"), used only by the optional oracle price guard.
+    /// `taker`: invite ONE counterparty (Direct OTC) — only that address may bid;
+    /// `None` leaves the RFQ open to anyone (the auction default).
+    /// The DvP sell-side lot is passed as one `base` struct (token + amount + the
+    /// Reflector `symbol`) so the function stays within Soroban's 10-input cap once
+    /// `taker` is added. `base = None` (or amount 0) is a plain quote-only RFQ.
     pub fn post_rfq_dvp(
         env: Env,
         maker: Address,
@@ -276,35 +293,37 @@ impl Otc {
         band_min: i128,
         band_max: i128,
         deadline: u64,
-        base_token: Address,
-        base_amount: i128,
-        base_symbol: Symbol,
+        base: Option<BaseSpec>,
+        taker: Option<Address>,
     ) -> u32 {
-        if base_amount < 0 {
-            soroban_sdk::panic_with_error!(&env, OtcError::InvalidAmount);
-        }
-        // The sell-side lot must be a DIFFERENT asset than the quote/escrow token —
-        // otherwise the lot and every bidder's good-faith escrow commingle in one
-        // balance and a settle could pay the winner out of other RFQs' escrow.
-        if base_amount > 0 && base_token == Self::token_address(env.clone()) {
-            soroban_sdk::panic_with_error!(&env, OtcError::InvalidAmount);
+        if let Some(b) = &base {
+            if b.amount < 0 {
+                soroban_sdk::panic_with_error!(&env, OtcError::InvalidAmount);
+            }
+            // The sell-side lot must be a DIFFERENT asset than the quote/escrow token —
+            // otherwise the lot and every bidder's good-faith escrow commingle in one
+            // balance and a settle could pay the winner out of other RFQs' escrow.
+            if b.amount > 0 && b.token == Self::token_address(env.clone()) {
+                soroban_sdk::panic_with_error!(&env, OtcError::InvalidAmount);
+            }
         }
         let id = Self::create_rfq(&env, maker.clone(), pair, side, mode, band_min, band_max, deadline);
-        if base_amount > 0 {
-            // Pull the sell-side lot into escrow (maker authed via create_rfq).
-            TokenClient::new(&env, &base_token).transfer(
-                &maker,
-                &env.current_contract_address(),
-                &base_amount,
-            );
-            env.storage().persistent().set(
-                &DataKey::Base(id),
-                &BaseLeg { token: base_token.clone(), amount: base_amount },
-            );
-            env.storage().persistent().set(&DataKey::BaseSym(id), &base_symbol);
-            Self::bump(&env, &DataKey::Base(id));
-            Self::bump(&env, &DataKey::BaseSym(id));
-            env.events().publish((symbol_short!("baseleg"), id), (base_token, base_amount));
+        // Direct OTC: restrict bidding to the invited taker (absent = open to anyone).
+        if let Some(t) = taker {
+            env.storage().persistent().set(&DataKey::Taker(id), &t);
+            Self::bump(&env, &DataKey::Taker(id));
+            env.events().publish((symbol_short!("taker"), id), t);
+        }
+        if let Some(b) = base {
+            if b.amount > 0 {
+                // Pull the sell-side lot into escrow (maker authed via create_rfq).
+                TokenClient::new(&env, &b.token).transfer(&maker, &env.current_contract_address(), &b.amount);
+                env.storage().persistent().set(&DataKey::Base(id), &BaseLeg { token: b.token.clone(), amount: b.amount });
+                env.storage().persistent().set(&DataKey::BaseSym(id), &b.symbol);
+                Self::bump(&env, &DataKey::Base(id));
+                Self::bump(&env, &DataKey::BaseSym(id));
+                env.events().publish((symbol_short!("baseleg"), id), (b.token, b.amount));
+            }
         }
         id
     }
@@ -344,6 +363,12 @@ impl Otc {
         }
         if env.ledger().timestamp() > rfq.deadline {
             soroban_sdk::panic_with_error!(&env, OtcError::Expired);
+        }
+        // Direct OTC: if the maker invited a specific taker, only they may bid.
+        if let Some(t) = env.storage().persistent().get::<DataKey, Address>(&DataKey::Taker(rfq_id)) {
+            if from != t {
+                soroban_sdk::panic_with_error!(&env, OtcError::NotInvitedTaker);
+            }
         }
         // one bid per identity per RFQ
         let nf_key = DataKey::Nullifier(rfq_id, nullifier.clone());
@@ -640,6 +665,10 @@ impl Otc {
     /// The maker's escrowed sell-side lot for an RFQ (None for quote-only auctions).
     pub fn base_leg(env: Env, rfq_id: u32) -> Option<BaseLeg> {
         env.storage().persistent().get(&DataKey::Base(rfq_id))
+    }
+    /// The invited Direct-OTC counterparty for an RFQ (None = open to anyone).
+    pub fn taker(env: Env, rfq_id: u32) -> Option<Address> {
+        env.storage().persistent().get(&DataKey::Taker(rfq_id))
     }
     pub fn balance(env: Env) -> i128 {
         Self::token(&env).balance(&env.current_contract_address())

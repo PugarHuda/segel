@@ -325,7 +325,7 @@ fn dvp_delivers_base_to_winner() {
 
     let id = c.otc.post_rfq_dvp(
         &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
-        &100, &500, &1000, &base_addr, &800, &symbol_short!("XLM"),
+        &100, &500, &1000, &Some(BaseSpec { token: base_addr.clone(), amount: 800, symbol: symbol_short!("XLM") }), &None::<Address>,
     );
     assert_eq!(base.balance(&c.maker), 200); // 800 lot escrowed at post
     assert_eq!(base.balance(&c.otc.address), 800); // held by the desk
@@ -356,7 +356,7 @@ fn dvp_cancel_returns_base_to_maker() {
 
     let id = c.otc.post_rfq_dvp(
         &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
-        &100, &500, &1000, &base_addr, &800, &symbol_short!("XLM"),
+        &100, &500, &1000, &Some(BaseSpec { token: base_addr.clone(), amount: 800, symbol: symbol_short!("XLM") }), &None::<Address>,
     );
     let t = bidder(&env, &c, 1000);
     c.otc.commit_bid(&t, &id, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
@@ -378,7 +378,7 @@ fn dvp_rejects_base_equal_quote_token() {
     let quote = c.token.address.clone();
     c.otc.post_rfq_dvp(
         &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
-        &100, &500, &1000, &quote, &800, &symbol_short!("USDC"),
+        &100, &500, &1000, &Some(BaseSpec { token: quote.clone(), amount: 800, symbol: symbol_short!("USDC") }), &None::<Address>,
     );
 }
 
@@ -395,7 +395,7 @@ fn dvp_base_credited_when_winner_cant_receive_then_claimed() {
     base.mint(&c.maker, &800);
     let id = c.otc.post_rfq_dvp(
         &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
-        &100, &500, &1000, &base_tok, &800, &symbol_short!("XLM"),
+        &100, &500, &1000, &Some(BaseSpec { token: base_tok.clone(), amount: 800, symbol: symbol_short!("XLM") }), &None::<Address>,
     );
     assert_eq!(base.balance(&c.otc.address), 800); // lot escrowed
     c.otc.commit_bid(&w, &id, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
@@ -422,7 +422,7 @@ fn oracle_guard_allows_clearing_near_mark() {
     StellarAssetClient::new(&env, &base_addr).mint(&c.maker, &2000);
     let id = c.otc.post_rfq_dvp(
         &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
-        &100, &500, &1000, &base_addr, &1700, &symbol_short!("XLM"),
+        &100, &500, &1000, &Some(BaseSpec { token: base_addr.clone(), amount: 1700, symbol: symbol_short!("XLM") }), &None::<Address>,
     );
     c.otc.set_price_guard(&5000); // ±50%
     let w = bidder(&env, &c, 1000);
@@ -443,12 +443,56 @@ fn oracle_guard_rejects_off_market_clearing() {
     StellarAssetClient::new(&env, &base_addr).mint(&c.maker, &2000);
     let id = c.otc.post_rfq_dvp(
         &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
-        &100, &500, &1000, &base_addr, &1700, &symbol_short!("XLM"),
+        &100, &500, &1000, &Some(BaseSpec { token: base_addr.clone(), amount: 1700, symbol: symbol_short!("XLM") }), &None::<Address>,
     );
     c.otc.set_price_guard(&1000); // ±10% -> band ~[270,330]
     let w = bidder(&env, &c, 1000);
     c.otc.commit_bid(&w, &id, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
     c.otc.settle(&id, &dummy_proof(&env), &w, &450); // in RFQ band 100-500 but off-market
+}
+
+// Direct OTC: the maker invites ONE counterparty; only that address may bid.
+#[test]
+fn directed_rfq_only_invited_taker_may_bid() {
+    let env = Env::default();
+    let c = setup(&env);
+    let invited = bidder(&env, &c, 1000);
+    let id = c.otc.post_rfq_dvp(
+        &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &0,
+        &100, &500, &1000, &None::<BaseSpec>, &Some(invited.clone()),
+    );
+    assert_eq!(c.otc.taker(&id).unwrap(), invited); // recorded on-chain
+    c.otc.commit_bid(&invited, &id, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
+    assert_eq!(c.otc.bid_count(&id), 1); // the invited taker can bid
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #15)")] // NotInvitedTaker
+fn directed_rfq_rejects_outsider() {
+    let env = Env::default();
+    let c = setup(&env);
+    let invited = bidder(&env, &c, 1000);
+    let outsider = bidder(&env, &c, 1000);
+    let id = c.otc.post_rfq_dvp(
+        &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &0,
+        &100, &500, &1000, &None::<BaseSpec>, &Some(invited.clone()),
+    );
+    c.otc.commit_bid(&outsider, &id, &b32(&env, 2), &b32(&env, 12), &dummy_proof(&env)); // not invited -> #15
+}
+
+// An OPEN RFQ (taker = None) still accepts any bidder.
+#[test]
+fn open_rfq_accepts_anyone() {
+    let env = Env::default();
+    let c = setup(&env);
+    let anyone = bidder(&env, &c, 1000);
+    let id = c.otc.post_rfq_dvp(
+        &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
+        &100, &500, &1000, &None::<BaseSpec>, &None::<Address>,
+    );
+    assert!(c.otc.taker(&id).is_none());
+    c.otc.commit_bid(&anyone, &id, &b32(&env, 3), &b32(&env, 13), &dummy_proof(&env));
+    assert_eq!(c.otc.bid_count(&id), 1);
 }
 
 #[test]

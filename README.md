@@ -174,6 +174,10 @@ proof). There is no signing path — the server is read-only by construction.
   Confidential Tokens highlights, on Segel's own commitments. It's sharpest for the
   **winner**, whose true bid is hidden on-chain (Vickrey pays the second price) yet
   remains bindingly disclosable to an auditor.
+- **Directed Direct OTC.** A maker can invite **one counterparty** (Create → Direct
+  OTC → Counterparty); only that address may bid (`commit_bid` rejects everyone else
+  on-chain), leaving it empty = open to anyone. The Active RFQs list labels each RFQ
+  (`YOU` / `→ YOU` if you're the invited taker / `→ G…` / `reserved`).
 - **Per-identity Sybil resistance.** A nullifier `Poseidon(idSecret, rfqId)` lets
   one identity bid once per RFQ, with the KYC identity hidden via an ASP Merkle
   allow-list.

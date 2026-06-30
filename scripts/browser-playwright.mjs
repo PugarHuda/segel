@@ -69,8 +69,10 @@ try {
   await page.click('[data-nav="create"]');
   await page.click('[data-act="mode:0"]');
   ok(/DIRECT OTC/.test(await innerText(page)), "mode toggle → Direct OTC selected");
+  ok((await page.$('[data-form="taker"]')) !== null, "Direct OTC shows the COUNTERPARTY field (empty = open to anyone)");
   await page.click('[data-act="mode:1"]');
   ok(/RFQ AUCTION/.test(await innerText(page)), "mode toggle → RFQ Auction selected");
+  ok((await page.$('[data-form="taker"]')) === null, "RFQ Auction hides the counterparty field (multi-bidder)");
   ok((await page.$('[data-form="lot"]')) !== null, "create form has the DvP LOT field (XLM you deliver)");
   await page.click('[data-act="side:BUY"]'); await page.click('[data-act="side:SELL"]'); // both toggle without error
   // negative case: max <= min must be rejected client-side

@@ -29,7 +29,7 @@ const STATUS = {
 const S = {
   view: "active", connected: false, address: null, balance: "0",
   rfqs: [], events: [], loading: true, modal: null, toast: null,
-  form: { pair: "XLM / USDC", side: "SELL", mode: 1, min: "3", max: "5", deadlineMin: "60", lot: "20" },
+  form: { pair: "XLM / USDC", side: "SELL", mode: 1, min: "3", max: "5", deadlineMin: "60", lot: "20", taker: "" },
   createMode: 1, health: null,
 };
 
@@ -146,7 +146,8 @@ function viewActive() {
       if (expired && r.bids === 0) { label = "Cancel"; bg = "#fbeede"; col = "#b07320"; act = `cancel:${r.id}`; }
       else { label = "Settle"; bg = "#fbeede"; col = "#b07320"; act = `settle:${r.id}`; }
     }
-    const exp = expired ? "expired" : "open";
+    else if (r.taker && r.taker !== S.address) { label = "reserved"; bg = "#f1f3f9"; col = "#9aa0b2"; act = ""; } // directed to someone else
+    const exp = expired ? (r.taker && r.taker !== S.address ? "reserved" : "expired") : (r.taker && r.taker !== S.address ? "reserved" : "open");
     return `<div class="rfq-grid" style="display:grid;grid-template-columns:0.8fr 1.7fr 0.7fr 1fr 1.2fr 0.55fr 1fr 0.8fr;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid #f4f6fb;background:${mine ? "#f9faff" : "#fff"}">
       <span style="font-size:11px;font-weight:600;color:#33384a">RFQ-${String(r.id).padStart(3, "0")}</span>
       <div style="display:flex;align-items:center;gap:7px">
@@ -155,7 +156,7 @@ function viewActive() {
         <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:20px;height:20px;border-radius:50%;background:${b.bg};color:${b.fg};font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center">${esc(bT.slice(0, 3))}</span><span style="font-size:10.5px;font-weight:600">${esc(bT)}</span></span>
       </div>
       <span style="font-size:9.5px;font-weight:600;color:${r.mode === 0 ? "#3a4a8a" : "#7a5fae"}">${r.mode === 0 ? "DIRECT" : "RFQ"}</span>
-      <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#5d6273">${short(r.maker)}${mine ? `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eef1fb;color:#6c7fe0">YOU</span>` : ""}</div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#5d6273">${short(r.maker)}${mine ? `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eef1fb;color:#6c7fe0">YOU</span>` : ""}${r.taker ? (r.taker === S.address ? `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eaf5ef;color:#2f9b6e" title="this Direct-OTC RFQ is reserved for you">→ YOU</span>` : `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#f1f3f9;color:#9aa0b2" title="reserved for ${esc(r.taker)}">→ ${esc(short(r.taker))}</span>`) : ""}</div>
       <div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:#5d6273"><span class="msi" style="font-size:13px;color:#b6bdd0">lock</span>${usd(r.bandMin)}–${usd(r.bandMax)}${r.baseLot ? `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eaf5ef;color:#2f9b6e" title="delivery leg: winner receives this lot">${(+r.baseLot).toLocaleString()} XLM</span>` : ""}</div>
       <span style="font-weight:700;font-size:13px;color:#14151a">${r.bids}</span>
       <span><span style="font-size:9.5px;font-weight:600;padding:3px 9px;border-radius:6px;background:${st.bg};color:${st.c}">${st.l}</span></span>
@@ -202,6 +203,7 @@ function viewCreate() {
         ${field("MAX PRICE (= escrow)", "max", S.form.max)}
         ${field("LOT — XLM you deliver (0 = none)", "lot", S.form.lot)}
         ${field("DEADLINE (min from now)", "deadlineMin", S.form.deadlineMin)}
+        ${m === 0 ? field("COUNTERPARTY (optional · empty = open to anyone)", "taker", S.form.taker, "1 / -1") : ""}
       </div>
       <button data-act="post" style="margin-top:16px;width:100%;font-size:12.5px;font-weight:600;cursor:pointer;padding:12px;border-radius:9px;border:none;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:7px">Post ${m === 0 ? "direct" : "RFQ"} &amp; open escrow ↗</button>
     </div></div>`;
@@ -481,9 +483,10 @@ async function doPost() {
   const deadline = Math.floor(Date.now() / 1000) + Math.max(1, +f.deadlineMin) * 60;
   toast("Posting RFQ on-chain…", "◷");
   const lot = Math.max(0, +f.lot || 0);
-  const res = await chain.postRfq({ pair: f.pair.replace(/\s/g, "").replace("/", "").slice(0, 9), side: f.side, mode: f.mode, bandMin: f.min, bandMax: f.max, deadline, baseAmount: lot });
+  const taker = +f.mode === 0 ? (f.taker || "").trim() : ""; // counterparty only for Direct OTC
+  const res = await chain.postRfq({ pair: f.pair.replace(/\s/g, "").replace("/", "").slice(0, 9), side: f.side, mode: f.mode, bandMin: f.min, bandMax: f.max, deadline, baseAmount: lot, taker });
   if (!res.ok) return toast(res.error, "✕", "#3a1414", "#ffd2d2");
-  logEvent("POST", "Posted RFQ", `${f.pair} · band ${f.min}–${f.max}${lot ? ` · ${lot} XLM lot` : ""}`, res.hash);
+  logEvent("POST", "Posted RFQ", `${f.pair} · band ${f.min}–${f.max}${lot ? ` · ${lot} XLM lot` : ""}${taker ? " · directed" : ""}`, res.hash);
   toast("RFQ posted ✓", "✓");
   S.view = "active"; await refresh();
 }

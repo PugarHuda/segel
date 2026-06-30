@@ -68,7 +68,7 @@ export async function deskState() {
 
 // view ScVal + base_leg ScVal -> RFQ row object. `baseLot` = human XLM lot the
 // winner receives at settle (null = quote-only RFQ).
-function mapRfq(id, v, bl) {
+function mapRfq(id, v, bl, tk) {
   return {
     id,
     maker: v.maker,
@@ -80,12 +80,13 @@ function mapRfq(id, v, bl) {
     deadline: Number(v.deadline),
     status: Number(v.status),
     baseLot: bl && bl.ok && bl.value ? toUsdc(bl.value.amount.toString()) : null,
+    taker: tk && tk.ok && tk.value ? tk.value : null, // invited Direct-OTC counterparty (null = open)
   };
 }
 
 export async function getRfq(id) {
-  const [r, bl] = await Promise.all([simulate(OTC, "get_rfq_view", u32(id)), simulate(OTC, "base_leg", u32(id))]);
-  return r.ok ? mapRfq(id, r.value, bl) : null;
+  const [r, bl, tk] = await Promise.all([simulate(OTC, "get_rfq_view", u32(id)), simulate(OTC, "base_leg", u32(id)), simulate(OTC, "taker", u32(id))]);
+  return r.ok ? mapRfq(id, r.value, bl, tk) : null;
 }
 
 export async function listRfqs() {
@@ -95,14 +96,15 @@ export async function listRfqs() {
   // "0 live" for seconds while it crawled the list.
   const rows = await Promise.all(
     Array.from({ length: rfqCount }, async (_, i) => {
-      const [v, bl, bc, st] = await Promise.all([
+      const [v, bl, bc, st, tk] = await Promise.all([
         simulate(OTC, "get_rfq_view", u32(i)),
         simulate(OTC, "base_leg", u32(i)),
         simulate(OTC, "bid_count", u32(i)),
         simulate(OTC, "settlement", u32(i)),
+        simulate(OTC, "taker", u32(i)),
       ]);
       if (!v.ok) return null;
-      const r = mapRfq(i, v.value, bl);
+      const r = mapRfq(i, v.value, bl, tk);
       r.bids = bc.ok ? Number(bc.value) : 0;
       r.settlement = st.ok && st.value ? { clearing: st.value.clearing.toString() } : null;
       return r;
@@ -163,6 +165,7 @@ const OTC_ERRORS = {
   7: "invalid amount", 8: "the zero-knowledge proof was rejected on-chain",
   9: "only the maker can settle", 10: "clearing price out of band", 11: "no bids to settle",
   12: "already settled", 13: "nothing to claim",
+  14: "clearing price off the oracle mark", 15: "this Direct-OTC RFQ is reserved for a specific counterparty",
 };
 function friendly(e) {
   const msg = (e && e.message) || String(e);
@@ -174,9 +177,12 @@ const hashOf = (res) => res?.sendTransactionResponse?.hash || res?.getTransactio
 
 // baseAmount = human XLM lot the maker escrows as the delivery leg (0 = quote-only).
 // Always routes through post_rfq_dvp; base_amount 0 behaves exactly like the old post_rfq.
-export async function postRfq({ pair, side, mode, bandMin, bandMax, deadline, baseAmount = 0 }) {
+// taker = optional invited counterparty (Direct OTC); empty/null = open to anyone.
+export async function postRfq({ pair, side, mode, bandMin, bandMax, deadline, baseAmount = 0, taker = null }) {
   try {
     const c = await writeClient();
+    const t = taker && taker.trim() ? taker.trim() : null;
+    if (t && !/^G[A-Z2-7]{55}$/.test(t)) return { ok: false, error: "counterparty must be a valid Stellar address (G…) or empty" };
     const at = await c.post_rfq_dvp({
       maker: c._from,
       pair: pair.slice(0, 9),
@@ -185,9 +191,10 @@ export async function postRfq({ pair, side, mode, bandMin, bandMax, deadline, ba
       band_min: toStroops(bandMin), // UI passes human USDC; contract stores stroops
       band_max: toStroops(bandMax),
       deadline: BigInt(deadline),
-      base_token: XLM_SAC,
-      base_amount: toStroops(baseAmount), // 7-dec stroops, same scale as XLM SAC
-      base_symbol: "XLM", // lot asset's Reflector symbol (the only base the desk uses) — feeds the settle oracle guard
+      // DvP lot bundled in one struct (keeps the call within Soroban's 10-arg cap);
+      // symbol "XLM" feeds the settle oracle guard. null = quote-only.
+      base: Number(baseAmount) > 0 ? { token: XLM_SAC, amount: toStroops(baseAmount), symbol: "XLM" } : null,
+      taker: t, // null = open; a G… address = only that taker may bid
     });
     const res = await at.signAndSend();
     return { ok: true, hash: hashOf(res), id: at.result };
