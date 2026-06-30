@@ -38,11 +38,17 @@ oracle that backstops settlement with a price circuit-breaker.
   | **bidValidity** | `commit = Poseidon(bid,nonce,addr)` · `band_min ≤ bid ≤ band_max` · proof-of-funds (`bid ≤ escrow`) · ASP allow-list membership (identity hidden) · fresh nullifier (one bid per identity per RFQ) |
   | **auctionResult** | every commitment binds · `winner = argmax` · `clearingPrice = second-highest` (Vickrey) — all compared **in-circuit**; losing bids never appear in the output |
 
+- **More than a 1-sided auction:** real two-asset **delivery-vs-payment** (the maker
+  escrows a lot the winner receives at settle, atomically against payment), escrow +
+  settlement in **Circle's real testnet USDC**, a **Reflector** oracle price
+  circuit-breaker consumed in `settle`, and a read-only **MCP** server so an AI agent
+  can query the live desk. (Honest scope on the oracle: a fat-finger net, not an
+  anti-manipulation control — the ZK proof is the real binding on the price.)
 - **It runs on Stellar — live on testnet, every claim with a proof link:**
 
   | Contract | Role | Verified |
   |---|---|---|
-  | [otc desk](https://stellar.expert/explorer/testnet/contract/CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM) | RFQ, sealed-bid commit-set, USDC escrow, Vickrey settle, refunds | [post](https://stellar.expert/explorer/testnet/tx/e7c8668528c39adf4dd512d569d11bb18877643b9f7117f4372a478a44c478ca) · [bid](https://stellar.expert/explorer/testnet/tx/af723ff7361c4a239d88acc4de4cb3d8c1d2a67c5d08eac0de60d136e94035d3) · [settle](https://stellar.expert/explorer/testnet/tx/6cdba51be153182a47c372107e4885665541fe2591de781c09c73ad897ae3ee5) live |
+  | [otc desk](https://stellar.expert/explorer/testnet/contract/CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM) | RFQ, sealed-bid commit-set, real Circle-USDC escrow, Vickrey settle, two-asset **DvP** delivery, un-griefable refunds, oracle price-guard, in-place upgradeable | DvP run (RFQ #13): [post+20 XLM lot](https://stellar.expert/explorer/testnet/tx/a16e4dae39c9595dd8dd2fcb4fdd44d30fc88eca10385d2cb7e63767706875e1) · [bid](https://stellar.expert/explorer/testnet/tx/02afe9fc9ca8b4b465ec477f3e9abddaad5a6d2ae63f34ba1555e31c9c3ec495) · [settle+deliver](https://stellar.expert/explorer/testnet/tx/95dfea5077c2ba29d5357a2e0b6fd93d3098fbbefcf5062f7ad241ed7b00c41e) live |
   | [bidValidity verifier](https://stellar.expert/explorer/testnet/contract/CAL5XO2NPC2ZFVQSXX7HSS6ARQOX6GL24LCR5SZVEIKENOLN2HUOK7DK) | verifies sealed-bid validity | `verify` → [`true`](https://stellar.expert/explorer/testnet/tx/8994686dc5d787c63c3690db810aec2653dae9dbf7a3b6c5818fe151a5624862) |
   | [auctionResult verifier](https://stellar.expert/explorer/testnet/contract/CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJHOLGGJEBY) | verifies Vickrey settlement | `verify` → `true`; tampered → `InvalidProof` |
 
@@ -109,6 +115,27 @@ pre-built public-input vector. For every proof it constructs the inputs from
 values it controls (the authenticated bidder, the RFQ band, the commitments it
 actually recorded). So a valid proof can't be reused with a different bid, a
 spoofed identity, or a different bid set — any mismatch fails verification.
+
+---
+
+## Try the MCP server (AI-agent access, read-only)
+
+Any MCP client (Claude Desktop, Cursor) can query the **live** desk on-chain — no
+RPC wiring, no keys. Add to `claude_desktop_config.json` and restart:
+
+```json
+{
+  "mcpServers": {
+    "segel": { "command": "node", "args": ["mcp/server.mjs"], "cwd": "/abs/path/to/segel" }
+  }
+}
+```
+
+Then ask the agent: *"list_rfqs"*, *"read_settlement of RFQ 13"*, *"mark_price of XLM"*.
+Tools: `list_rfqs`, `bid_count`, `clearing_price`, `read_settlement`, `mark_price` —
+every one a real on-chain simulate against the live contract. `read_settlement`
+reads the outcome the on-chain ZK verifier already accepted (it doesn't re-run the
+proof). There is no signing path — the server is read-only by construction.
 
 ---
 
