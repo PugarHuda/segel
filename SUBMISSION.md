@@ -90,9 +90,10 @@ lineage.)
 - **Complementary, not competing:** CT/SPP move value privately; Segel *discovers a
   price* privately. A confidential token can't run an auction; an auction needs a
   mechanism + a soundness proof, which is exactly what Segel adds.
-- **Selective disclosure — already shipped** (`npm run disclose`). The same
-  compliance primitive Confidential Tokens highlights, on Segel's *own* commitments,
-  no wrapper needed: a bidder can prove to a chosen party the exact value they bid —
+- **Selective disclosure — already shipped** (in the UI: **Portfolio → Disclose** /
+  **Verify a disclosure**; and on the CLI: `npm run disclose`). The same compliance
+  primitive Confidential Tokens highlights, on Segel's *own* commitments, no wrapper
+  needed: a bidder can prove to a chosen party the exact value they bid —
   checked against the real on-chain commitment — without it ever being public, and
   without being able to lie (any other value yields a different Poseidon commitment).
   It's especially sharp here because the **winner's true bid is hidden on-chain**

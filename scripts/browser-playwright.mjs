@@ -144,6 +144,22 @@ try {
   ok(/pre-funded/.test(fz), "faucet tells the truth for demo key (pre-funded)");
   ok(/Refresh balance/.test(fz), "faucet button = 'Refresh balance' (not fake request)");
 
+  // ---- Case 7b: selective disclosure — verify side (auditor, no local bid needed) ----
+  console.log("[7b] selective disclosure (verify a disclosure against on-chain)");
+  await page.click('[data-nav="portfolio"]');
+  await hasText(page, /Portfolio/, 8000);
+  await page.click('[data-act="verifyopen"]');
+  ok(await hasText(page, /Verify a disclosure/, 6000), "disclosure verify modal opens (auditor side)");
+  const DEMO = "GBJSZAEYQW5GQVJV77KGBPIN246HALRBWZINOQXE7DZ4NNHRVCSZMHAQ";
+  // RFQ #13 winner: bid 4.90 USDC, nonce = 123456789 + 1*99 (the e2e openings)
+  await page.fill('[data-disc="input"]', JSON.stringify({ rfqId: 13, bidder: DEMO, bid: 4.90, nonce: "123456888" }));
+  await page.click('[data-act="verifydisc"]');
+  ok(await hasText(page, /provably bid 4\.90/, 30000), "valid disclosure VERIFIED against the on-chain commitment");
+  await page.fill('[data-disc="input"]', JSON.stringify({ rfqId: 13, bidder: DEMO, bid: 5.90, nonce: "123456888" }));
+  await page.click('[data-act="verifydisc"]');
+  ok(await hasText(page, /Not verified/, 30000), "tampered disclosure (5.90) REJECTED — binding");
+  await page.click('button[data-act="closemodal"]').catch(() => {});
+
   // ---- Case 8 (opt-in): real on-chain DvP RFQ post + a REAL sealed bid, all via clicks ----
   if (process.env.E2E_WRITE === "1") {
     console.log("[8] WRITE: posting a real DvP RFQ (3–5 USDC band + 20 XLM lot) on-chain via the UI");
@@ -164,8 +180,9 @@ try {
     const dvpBid = await page.evaluate(() => {
       const sel = '[title*="delivery leg"]'; // the DvP lot chip's unique title = a DvP RFQ
       const btns = [...document.querySelectorAll('[data-act^="bid:"]')];
-      for (const b of btns) { const row = b.closest(".rfq-grid"); if (row && row.querySelector(sel)) return b.getAttribute("data-act"); }
-      return btns[0]?.getAttribute("data-act") || null;
+      const dvps = btns.filter((b) => b.closest(".rfq-grid")?.querySelector(sel));
+      const el = dvps[dvps.length - 1] || btns[btns.length - 1]; // newest DvP = freshest nullifier
+      return el?.getAttribute("data-act") || null;
     });
     if (dvpBid) {
       await page.click(`[data-act="${dvpBid}"]`);
@@ -181,6 +198,19 @@ try {
         return false;
       }, null, { timeout: 150000 }).then((h) => h.jsonValue()).catch(() => "timeout");
       ok(res === "sealed" || res === "already-bid", `real sealed bid via clicks → ${res}`);
+
+      // bidder-side selective disclosure: this browser now holds the opening, so the
+      // Portfolio shows a Disclose button that verifies against the on-chain commitment
+      await page.click('[data-nav="portfolio"]');
+      await hasText(page, /Portfolio/, 8000);
+      const disc = await page.$('[data-act^="disclose:"]');
+      if (disc) {
+        await disc.click();
+        ok(await hasText(page, /Prove your bid, privately|matches the on-chain commitment/, 30000), "bidder Disclose modal verifies the sealed bid against on-chain");
+        await page.click('button[data-act="closemodal"]').catch(() => {});
+      } else {
+        ok(true, "no local opening to disclose (skipped)");
+      }
     } else {
       ok(true, "no other-maker DvP RFQ open to bid on (skipped)");
     }

@@ -233,7 +233,7 @@ function viewPortfolio() {
     <div style="font-size:10px;color:${color === "dark" ? "#8a8e9e" : "#9aa0b2"};margin-top:3px">${note}</div></div>`;
   const list = (title, arr, sub) => `<div><div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:10px">${title}</div>
     <div style="display:flex;flex-direction:column;gap:7px">${arr.length ? arr.map(sub).join("") : `<div style="font-size:10.5px;color:#aab0c0;text-align:center;padding:14px;background:#fbfcff;border:1px dashed #e2e7f2;border-radius:9px">None yet</div>`}</div></div>`;
-  return `<div>${header("SEGEL · YOUR POSITIONS", "Portfolio")}
+  return `<div>${header("SEGEL · YOUR POSITIONS", "Portfolio", `<button data-act="verifyopen" style="font-size:11px;font-weight:600;color:#7a5fae;background:#faf8fe;border:1px solid #ece2f6;border-radius:8px;padding:8px 13px;cursor:pointer">Verify a disclosure</button>`)}
     <div class="g3" style="margin:16px 0 20px">
       ${card("AVAILABLE", usd(S.balance), "dark", "USDC")}
       ${card("YOUR RFQS", mine.length, "p", "posted")}
@@ -241,7 +241,7 @@ function viewPortfolio() {
     </div>
     <div class="g2" style="gap:18px">
       ${list("YOUR RFQS", mine, (r) => `<div style="display:flex;justify-content:space-between;align-items:center;background:#fbfcff;border:1px solid #edf0f7;border-radius:9px;padding:10px 12px"><div><div style="font-size:11.5px;font-weight:600">${esc(r.pair)}</div><div style="font-size:9.5px;color:#9aa0b2">RFQ-${String(r.id).padStart(3, "0")} · ${r.bids} bids</div></div><span style="font-size:9.5px;font-weight:600;padding:3px 8px;border-radius:5px;background:${(STATUS[r.status] || STATUS[0]).bg};color:${(STATUS[r.status] || STATUS[0]).c}">${(STATUS[r.status] || STATUS[0]).l}</span></div>`)}
-      ${list("YOUR SEALED BIDS", myBids, (r) => `<div style="display:flex;justify-content:space-between;align-items:center;background:#fbfcff;border:1px solid #edf0f7;border-radius:9px;padding:10px 12px"><div><div style="font-size:11.5px;font-weight:600">${esc(r.pair)}</div><div style="font-size:9.5px;color:#9aa0b2;letter-spacing:1px">commit •••• · RFQ-${String(r.id).padStart(3, "0")}</div></div><span style="font-size:9.5px;font-weight:600;padding:3px 8px;border-radius:5px;background:#ece2f6;color:#7a5fae">${openingsFor(r.id).length} sealed</span></div>`)}
+      ${list("YOUR SEALED BIDS", myBids, (r) => `<div style="display:flex;justify-content:space-between;align-items:center;background:#fbfcff;border:1px solid #edf0f7;border-radius:9px;padding:10px 12px"><div><div style="font-size:11.5px;font-weight:600">${esc(r.pair)}</div><div style="font-size:9.5px;color:#9aa0b2;letter-spacing:1px">commit •••• · RFQ-${String(r.id).padStart(3, "0")}</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:9.5px;font-weight:600;padding:3px 8px;border-radius:5px;background:#ece2f6;color:#7a5fae">${openingsFor(r.id).length} sealed</span><button data-act="disclose:${r.id}" title="Prove your bid to a counterparty without revealing it publicly" style="font-size:9.5px;font-weight:600;border:1px solid #d8cdef;background:#fff;color:#7a5fae;border-radius:6px;padding:4px 9px;cursor:pointer">Disclose</button></div></div>`)}
     </div></div>`;
 }
 
@@ -352,7 +352,38 @@ function modalEl() {
       </div></div>`);
   }
   if (m.type === "proving") return wrap(provingCard(m.stage));
+  if (m.type === "disclose") return wrap(discloseCard(m));
   return "";
+}
+// Selective disclosure: the bidder proves their exact sealed bid to a chosen party
+// against the on-chain commitment (private + binding), and the counterparty can
+// verify any disclosure here. Segel's analog of the Confidential-Token primitive.
+function discloseCard(m) {
+  const verifyOnly = m.rfqId == null;
+  const ctx = verifyOnly ? "VERIFY" : `RFQ-${String(m.rfqId).padStart(3, "0")}`;
+  const head = `<div style="padding:16px 22px;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#7a5fae,#b3a6dd);color:#fff"><div><div style="font-size:10px;opacity:.85;letter-spacing:1px">SELECTIVE DISCLOSURE · ${ctx}</div><div style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:17px;margin-top:2px">${verifyOnly ? "Verify a disclosure" : "Prove your bid, privately"}</div></div><button data-act="closemodal" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">×</button></div>`;
+  const mine = verifyOnly
+    ? `<div style="font-size:11px;color:#8a8f9c;line-height:1.6;margin-bottom:6px">Paste a disclosure a bidder shared with you. It's checked against the on-chain commitment — a bidder can prove their exact sealed bid without it being public, and can't lie (any other amount fails).</div>`
+    : (m.items === null
+      ? `<div style="font-size:11px;color:#8a8f9c">checking on-chain…</div>`
+      : (m.items.length === 0
+        ? `<div style="font-size:11px;color:#8a8f9c">No sealed bid from this browser for this RFQ.</div>`
+        : m.items.map((it) => {
+        const blob = JSON.stringify({ rfqId: m.rfqId, bidder: it.bidder, bid: +(+it.bidUsdc).toFixed(2), nonce: it.nonce });
+        return `<div style="background:#faf8fe;border:1px solid #ece2f6;border-radius:10px;padding:12px;margin-bottom:10px">
+          ${check(it.onChain, `You bid <b>${(+it.bidUsdc).toFixed(2)} USDC</b> — ${it.onChain ? "matches the on-chain commitment" : "not found on-chain"}`)}
+          <div style="font-size:10px;color:#8a8f9c;margin:7px 0 5px">Share this proof with a counterparty / auditor (they verify it below — any other amount fails):</div>
+          <textarea readonly style="width:100%;height:54px;font-size:10px;font-family:monospace;border:1px solid #e4e8f2;border-radius:7px;padding:8px;background:#fff;color:#5d6273;resize:none">${esc(blob)}</textarea>
+        </div>`;
+      }).join("")));
+  const vr = m.verifyResult;
+  const verify = `<div style="border-top:1px solid #eef1f8;margin-top:6px;padding-top:14px">
+    <div style="font-size:10.5px;letter-spacing:.5px;color:#9aa0b2;margin-bottom:8px">VERIFY A DISCLOSURE · counterparty / auditor</div>
+    <textarea data-disc="input" placeholder='{"rfqId":${m.rfqId},"bidder":"G…","bid":4.90,"nonce":"…"}' style="width:100%;height:54px;font-size:10px;font-family:monospace;border:1px solid #e4e8f2;border-radius:7px;padding:8px;resize:none"></textarea>
+    <button data-act="verifydisc" style="margin-top:9px;width:100%;font-size:12px;font-weight:600;cursor:pointer;padding:10px;border-radius:9px;border:none;background:#0b0b0e;color:#fff">Verify against on-chain ↗</button>
+    ${vr ? (vr.loading ? `<div style="font-size:11px;color:#8a8f9c;margin-top:10px">verifying on-chain…</div>` : `<div style="margin-top:11px">${check(vr.ok, vr.msg)}</div>`) : ""}</div>`;
+  return `<div style="width:460px;max-width:100%;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 40px 90px -30px rgba(20,21,40,.6);animation:segelPop .18s ease-out">
+    ${head}<div style="padding:18px 22px;max-height:70vh;overflow:auto">${mine}${verify}</div></div>`;
 }
 function provingCard(stage) {
   return `<div style="width:360px;max-width:100%;background:#fff;border-radius:18px;padding:34px;text-align:center;box-shadow:0 40px 90px -30px rgba(20,21,40,.6);animation:segelPop .18s ease-out">
@@ -395,6 +426,9 @@ async function act(a) {
   if (cmd === "sealbid") return sealBid();
   if (cmd === "settle") return doSettle(+arg);
   if (cmd === "cancel") return doCancel(+arg);
+  if (cmd === "disclose") return openDisclose(+arg);
+  if (cmd === "verifyopen") return openDisclose(null);
+  if (cmd === "verifydisc") return doVerifyDisclosure();
   if (cmd === "view") { S.view = "activity"; return render(); }
   if (cmd === "dofaucet") return doFaucet();
   if (cmd === "poseidon") return doPoseidon();
@@ -459,6 +493,50 @@ function openBid(id) {
   const r = S.rfqs.find((x) => x.id === id);
   if (!r) return;
   S.modal = { type: "bid", rfq: r, amount: ((chain.toUsdc(r.bandMin) + chain.toUsdc(r.bandMax)) / 2).toFixed(2), commit: null, proving: false };
+  render();
+}
+
+// Open the selective-disclosure modal for one of your sealed bids, recomputing each
+// opening's commitment and confirming it's recorded on-chain.
+async function openDisclose(rfqId) {
+  S.modal = { type: "disclose", rfqId, items: rfqId == null ? [] : null, verifyResult: null };
+  render();
+  if (rfqId == null) return; // verify-only mode (auditor with no local bid)
+  try {
+    const onchain = await chain.bidsOf(rfqId); // on-chain commitments (decimal)
+    const items = [];
+    for (const o of openingsFor(rfqId)) {
+      const commit = await prover.commitOf(o.bid, o.nonce, o.bidderField);
+      items.push({ bidUsdc: chain.toUsdc(o.bid), nonce: o.nonce, bidder: o.bidderAddr || S.address, onChain: onchain.includes(commit) });
+    }
+    if (S.modal && S.modal.type === "disclose") { S.modal.items = items; render(); }
+  } catch (e) {
+    if (S.modal && S.modal.type === "disclose") { S.modal.items = []; render(); }
+  }
+}
+
+// Counterparty/auditor side: recompute the commitment from a pasted disclosure and
+// confirm it matches an on-chain commitment for that RFQ. Binding — a wrong amount
+// (or nonce/bidder) yields a different Poseidon commitment and fails.
+async function doVerifyDisclosure() {
+  if (!S.modal || S.modal.type !== "disclose") return;
+  const ta = document.querySelector('[data-disc="input"]');
+  let blob;
+  try { blob = JSON.parse(ta.value); } catch { S.modal.verifyResult = { ok: false, msg: "Invalid JSON — paste a disclosure blob." }; return render(); }
+  if (blob.rfqId == null || !blob.bidder || blob.bid == null || blob.nonce == null) { S.modal.verifyResult = { ok: false, msg: "Disclosure needs rfqId, bidder, bid, nonce." }; return render(); }
+  S.modal.verifyResult = { loading: true }; render();
+  try {
+    const bidderField = chain.addrField(String(blob.bidder));
+    const commit = await prover.commitOf(chain.toStroops(String(blob.bid)), String(blob.nonce), bidderField);
+    const onchain = await chain.bidsOf(Number(blob.rfqId));
+    const ok = onchain.includes(commit);
+    S.modal.verifyResult = {
+      ok,
+      msg: ok
+        ? `Verified: ${short(String(blob.bidder))} provably bid ${(+blob.bid).toFixed(2)} USDC on RFQ-${String(blob.rfqId).padStart(3, "0")} — matches the on-chain commitment.`
+        : `Not verified: no on-chain commitment matches this (RFQ, bidder, bid, nonce). A tampered amount fails by design.`,
+    };
+  } catch (e) { S.modal.verifyResult = { ok: false, msg: e.message || "verify failed" }; }
   render();
 }
 

@@ -166,12 +166,14 @@ proof). There is no signing path — the server is read-only by construction.
 - **Real Vickrey binding.** `settle` builds the auction public inputs from the
   **recorded** commitments (padded to N=8 with `Poseidon(0,0,0)`), so the proof is
   over exactly the on-chain sealed set — not a set the caller invented.
-- **Selective disclosure** (`npm run disclose`). A bidder can prove the exact value
-  they bid to a chosen party — checked against the real on-chain commitment — without
-  it being public, and without being able to lie (any other value yields a different
-  Poseidon commitment). The same compliance primitive Confidential Tokens highlights,
-  on Segel's own commitments. It's sharpest for the **winner**, whose true bid is
-  hidden on-chain (Vickrey pays the second price) yet remains bindingly disclosable.
+- **Selective disclosure** — in the UI (**Portfolio → Disclose**, and **Verify a
+  disclosure** for the counterparty/auditor) and on the CLI (`npm run disclose`). A
+  bidder proves the exact value they bid to a chosen party — checked against the real
+  on-chain commitment — without it being public, and without being able to lie (any
+  other value yields a different Poseidon commitment). The same compliance primitive
+  Confidential Tokens highlights, on Segel's own commitments. It's sharpest for the
+  **winner**, whose true bid is hidden on-chain (Vickrey pays the second price) yet
+  remains bindingly disclosable to an auditor.
 - **Per-identity Sybil resistance.** A nullifier `Poseidon(idSecret, rfqId)` lets
   one identity bid once per RFQ, with the KYC identity hidden via an ASP Merkle
   allow-list.
