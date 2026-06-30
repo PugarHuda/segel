@@ -51,7 +51,15 @@ open the settle tx's events / contract state. Point deliberately.
 > storage, not in the calldata. They were proven valid and proven to lose, and they
 > are mathematically unrecoverable. That's the guarantee a chat-room desk can't give."
 
-**2:15 — Don't trust me, check the chain (25s)** · *Action:* Audit tab → click
+**2:10 — Selective disclosure: compliance without leaking (20s)** · *Action:*
+Portfolio → **Verify a disclosure** → paste a winner's disclosure → **Verify**.
+> "But what if a regulator needs to see a bid? The winner here bid 4.90 but paid the
+> Vickrey price of 4.20 — their 4.90 is *not on the chain*. Yet they can prove it to
+> an auditor: paste their disclosure, and the desk checks it against the on-chain
+> commitment — verified. Change one digit and it fails. Private, but provable. Same
+> primitive as Stellar's new Confidential Tokens, on our own commitments."
+
+**2:30 — Don't trust me, check the chain (20s)** · *Action:* Audit tab → click
 **Run poseidon_hash(1,2)** (matches circomlib), then point at the **oracle row**.
 > "The contract runs Poseidon on-chain, bit-identical to the circuit. And the
 > Reflector oracle isn't just a badge — settle reads the live mark and rejects a

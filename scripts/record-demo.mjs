@@ -90,6 +90,18 @@ try {
     await clk('[data-act="sealbid"]');
     await wait(7000); // in-browser proving spinner + result toast
   }
+  await wait(1200);
+
+  // SELECTIVE DISCLOSURE beat — an auditor verifies a HIDDEN winner bid (4.90 USDC,
+  // never on-chain since Vickrey pays the second price) against the on-chain commitment.
+  await clk('[data-nav="portfolio"]'); await wait(1800);
+  await clk('[data-act="verifyopen"]'); await wait(1600);
+  await page.evaluate(() => {
+    const t = document.querySelector('[data-disc="input"]');
+    if (t) t.value = JSON.stringify({ rfqId: 13, bidder: "GBJSZAEYQW5GQVJV77KGBPIN246HALRBWZINOQXE7DZ4NNHRVCSZMHAQ", bid: 4.90, nonce: "123456888" });
+  });
+  await wait(1300);
+  await clk('[data-act="verifydisc"]'); await wait(4500); // verify on-chain -> "Verified: … bid 4.90 USDC"
   await wait(1500);
 
   recording = false; await grabber;
