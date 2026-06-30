@@ -41,7 +41,7 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
 
 ## Tested
 
-- **26/26 unit tests** (`contracts/otc/src/test.rs`): escrow lock, duplicate
+- **29/29 unit tests** (`contracts/otc/src/test.rs`): escrow lock, duplicate
   nullifier, deadline, capacity (N=8), winner payout + refunds, bad clearing,
   double-settle, no-bids, cancel-before-deadline, unknown RFQ, on-chain Poseidon,
   the `band_min` reserve (single-bid clears rejected), the claimable-refund
@@ -49,8 +49,9 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
   receive again), DvP delivery (winner receives the sell-side lot at settle /
   maker gets it back on cancel), the base≠quote-token guard, the base-claimable
   fallback (a winner who can't receive the lot is credited + `claim_base()`-es it),
-  and the oracle price-guard (clearing near the Reflector mark passes / off-market
-  rejected).
+  the oracle price-guard (clearing near the Reflector mark passes / off-market
+  rejected), and directed Direct-OTC access control (only the invited taker may bid;
+  an outsider is rejected `#15`; an open RFQ accepts anyone).
 - **On-chain:** both verifiers return `true` for valid proofs; a tampered
   clearing-price public input is rejected (`Error(Contract,#0)`).
 - **Live e2e** (`scripts/e2e-testnet.mjs`): post a 20 XLM lot → 3 sealed bids →

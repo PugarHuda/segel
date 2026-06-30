@@ -193,7 +193,7 @@ proof). There is no signing path — the server is read-only by construction.
   the winner atomically against their USDC payment, `cancel_expired` returns it to
   the maker. Verified live: the desk's XLM balance rises by the lot at post and
   falls by it at settle. The desk is a real swap, not a one-sided payment.
-- **26/26 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
+- **29/29 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
   (`scripts/e2e-testnet.mjs`): post a 20 XLM lot → 3 sealed bids → Vickrey settle
   with delivery, on testnet.
 
@@ -247,7 +247,7 @@ node scripts/e2e-testnet.mjs
 
 **On-chain** (contracts already deployed — IDs above):
 - Build a verifier WASM: `bash scripts/wsl-build-verifier.sh circuits/build/<name>_vk.json <out>.wasm`
-- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 26/26)
+- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 29/29)
 - Deploy: `bash scripts/wsl-deploy.sh`
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`

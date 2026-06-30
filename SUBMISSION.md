@@ -27,7 +27,10 @@ Segel is an on-chain sealed-bid OTC desk where:
 - while the whole settlement remains **verifiable on Stellar**.
 
 It's a real **two-asset delivery-vs-payment** swap (the maker escrows a lot delivered
-to the winner against payment), settled in **Circle's real testnet USDC**.
+to the winner against payment), settled in **Circle's real testnet USDC**. It runs
+both **open auctions** and **directed Direct OTC** — a maker can invite one
+counterparty (enforced on-chain: only that address may bid), so the same desk covers
+multi-bidder price discovery *and* private bilateral trades.
 
 ## Why the ZK is *load-bearing* (the hackathon's headline rule)
 
@@ -55,7 +58,7 @@ check fails). A judge can run it in one command.
 
 | Contract | Role | Proof |
 |---|---|---|
-| [otc desk `CBAJVX6X`](https://stellar.expert/explorer/testnet/contract/CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM) | RFQ, sealed commit-set, Circle-USDC escrow, Vickrey settle, **DvP** delivery, un-griefable refunds, oracle price-guard, in-place upgradeable | DvP run #13: [post+20 XLM](https://stellar.expert/explorer/testnet/tx/a16e4dae39c9595dd8dd2fcb4fdd44d30fc88eca10385d2cb7e63767706875e1) · [bid](https://stellar.expert/explorer/testnet/tx/02afe9fc9ca8b4b465ec477f3e9abddaad5a6d2ae63f34ba1555e31c9c3ec495) · [settle+deliver](https://stellar.expert/explorer/testnet/tx/95dfea5077c2ba29d5357a2e0b6fd93d3098fbbefcf5062f7ad241ed7b00c41e) |
+| [otc desk `CBAJVX6X`](https://stellar.expert/explorer/testnet/contract/CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM) | RFQ, sealed commit-set, Circle-USDC escrow, Vickrey settle, **DvP** delivery, un-griefable refunds, oracle price-guard, directed Direct-OTC, in-place upgradeable | DvP run #13: [post+20 XLM](https://stellar.expert/explorer/testnet/tx/a16e4dae39c9595dd8dd2fcb4fdd44d30fc88eca10385d2cb7e63767706875e1) · [bid](https://stellar.expert/explorer/testnet/tx/02afe9fc9ca8b4b465ec477f3e9abddaad5a6d2ae63f34ba1555e31c9c3ec495) · [settle+deliver](https://stellar.expert/explorer/testnet/tx/95dfea5077c2ba29d5357a2e0b6fd93d3098fbbefcf5062f7ad241ed7b00c41e) |
 | [bidValidity verifier](https://stellar.expert/explorer/testnet/contract/CAL5XO2NPC2ZFVQSXX7HSS6ARQOX6GL24LCR5SZVEIKENOLN2HUOK7DK) | verifies sealed-bid validity on-chain | `verify` → [`true`](https://stellar.expert/explorer/testnet/tx/8994686dc5d787c63c3690db810aec2653dae9dbf7a3b6c5818fe151a5624862) |
 | [auctionResult verifier](https://stellar.expert/explorer/testnet/contract/CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJHOLGGJEBY) | verifies Vickrey settlement on-chain | `verify` → `true`; tampered → rejected (`npm run test:tamper-onchain`) |
 
@@ -72,6 +75,8 @@ Oracle = **Reflector** SEP-40 testnet feed.
 | Circle USDC (SAC) | **Load-bearing** — real escrow + settlement, migrated live via `upgrade()`+`set_token` |
 | Reflector oracle (SEP-40) | **Consumed in `settle`** as a price circuit-breaker (honest scope below) |
 | Two-asset DvP (native XLM lot) | **Load-bearing** — a true swap, not a one-sided payment |
+| Directed Direct OTC (invited taker) | **Load-bearing** — on-chain enforced (`commit_bid` rejects non-invited, #15); open auctions + private bilateral in one desk |
+| Selective disclosure (UI + CLI) | compliance primitive on the auction's own commitments — prove a hidden bid to an auditor, bindingly |
 | Freighter / Stellar SDK | real signing + in-browser proving + live reads |
 | MCP server (read-only) | an AI agent can query the live desk (`list_rfqs`, `read_settlement`, `mark_price`) — setup in the README |
 

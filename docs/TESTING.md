@@ -5,7 +5,7 @@ a full live flow on Stellar testnet. All green as of the latest run.
 
 | Suite | Command | Result |
 |---|---|---|
-| Contract unit tests | `cargo test` (in `contracts/otc`) | **26 / 26 passed** |
+| Contract unit tests | `cargo test` (in `contracts/otc`) | **29 / 29 passed** |
 | Circuit proving | `npm run test:proving` | **6 / 6** — both circuits prove + verify; public signals asserted |
 | Circuit soundness | `npm run test:negative` | **10 / 10** bad witnesses rejected (see below) |
 | Frontend smoke | `npm run test:browser` | landing + desk render, live RFQ reads, **0 console errors** |
