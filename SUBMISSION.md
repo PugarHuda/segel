@@ -90,13 +90,20 @@ lineage.)
 - **Complementary, not competing:** CT/SPP move value privately; Segel *discovers a
   price* privately. A confidential token can't run an auction; an auction needs a
   mechanism + a soundness proof, which is exactly what Segel adds.
+- **Selective disclosure — already shipped** (`npm run disclose`). The same
+  compliance primitive Confidential Tokens highlights, on Segel's *own* commitments,
+  no wrapper needed: a bidder can prove to a chosen party the exact value they bid —
+  checked against the real on-chain commitment — without it ever being public, and
+  without being able to lie (any other value yields a different Poseidon commitment).
+  It's especially sharp here because the **winner's true bid is hidden on-chain**
+  (Vickrey: they pay the *second* price), yet they can still disclose it bindingly to
+  an auditor/counterparty. Demonstrated live against RFQ #13's settled commitments.
 - **Honest future work (a real integration, not a deadline hack):** settle the
   winning leg through a **Confidential Token** so the *notional/size* stays private
-  while Segel keeps the *price* publicly proven; and pair Segel's ASP allow-list with
-  CT's **auditor view key + selective disclosure** for a fully compliance-aware
-  confidential auction. We deliberately did **not** bolt the brand-new CT preview
-  (Noir/UltraHonk, audits in progress) onto our working Circom/Groth16 stack at the
-  deadline — combining two proof systems safely is a project, not a demo patch.
+  while Segel keeps the *price* publicly proven. We deliberately did **not** bolt the
+  brand-new CT preview (Noir/UltraHonk, audits in progress) onto our working
+  Circom/Groth16 stack at the deadline — combining two proof systems safely is a
+  project, not a demo patch.
 
 ## Honest scope (what we do *not* overclaim)
 
@@ -123,6 +130,7 @@ npm run serve                  # http://localhost:8000 — the live desk
 npm run test:proving           # 6/6 — both circuits prove + verify
 npm run test:negative          # 10/10 — soundness (bad witnesses rejected)
 npm run test:tamper-onchain    # tampered proof rejected by the LIVE verifier
+npm run disclose               # selective disclosure: prove a sealed bid's value vs the on-chain commitment (binding, private)
 npm run e2e                    # full DvP flow on testnet: post lot → 3 sealed bids → settle+deliver
 npm run test:e2e-ui            # Playwright: real-click journey through the desk (E2E_WRITE=1 also posts+bids on-chain)
 # contracts: cargo test in contracts/otc → 26/26
