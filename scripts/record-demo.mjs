@@ -6,7 +6,8 @@ import { mkdirSync, rmSync, readdirSync } from "node:fs";
 import puppeteer from "puppeteer-core";
 
 const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-const FFMPEG = "C:\\Hackathons\\Hackathon Stellar Real World ZK\\tools\\bin\\ffmpeg.exe";
+// ffmpeg ships in V1's tools/bin; override with FFMPEG=... if it lives elsewhere.
+const FFMPEG = process.env.FFMPEG || "C:\\Hackathons\\Hackathon Stellar Real World ZK\\tools\\bin\\ffmpeg.exe";
 const FRAMES = process.env.TEMP + "\\segel-demo-frames";
 const OUT = "frontend/segel-demo.mp4";
 const PORT = 8131;
@@ -60,28 +61,34 @@ try {
   // DESK
   await page.goto(base + "/app.html", { waitUntil: "networkidle2", timeout: 45000 });
   await page.waitForFunction(() => !/loading live RFQs/.test(document.body.innerText), { timeout: 40000 }).catch(() => {});
+  // stable attribute selectors (text labels drift; these don't)
+  const clk = (sel) => page.click(sel).catch(() => {});
   await wait(2200);
-  await clickText(page, "button", "Connect wallet"); await wait(1200);
-  await clickText(page, "button", "Embedded key");
+  await clk('[data-act="connect"]'); await wait(1200);
+  await clk('[data-act="conn:demo"]');
   await page.waitForFunction(() => /USDC/.test(document.body.innerText), { timeout: 20000 }).catch(() => {});
   await wait(2000);
-  await clickText(page, "[data-nav]", "Create RFQ"); await wait(2200);
-  await clickText(page, "[data-act='mode:0']", "Direct OTC").catch(() => {}); await wait(1400);
-  await clickText(page, "[data-act='mode:1']", "RFQ Auction").catch(() => {}); await wait(1400);
-  await clickText(page, "[data-nav]", "Docs"); await wait(2800);
-  await clickText(page, "[data-nav]", "Audit"); await wait(1600);
-  await clickText(page, "[data-act='poseidon']", "poseidon"); await wait(3000);
-  await clickText(page, "[data-nav]", "Active RFQs"); await wait(2000);
-  // bid on the NEWEST open RFQ (last "Bid" button) so the nullifier is fresh
+  // CREATE — show the DvP lot field by filling the form
+  await clk('[data-nav="create"]'); await wait(1800);
+  await clk('[data-act="mode:0"]'); await wait(1300);
+  await clk('[data-act="mode:1"]'); await wait(1300);
+  await page.evaluate(() => { const f = document.querySelector('[data-form="lot"]'); if (f) { f.scrollIntoView({ block: "center" }); } }); await wait(1600);
+  await clk('[data-nav="docs"]'); await wait(2600);
+  await clk('[data-nav="audit"]'); await wait(1600);
+  await clk('[data-act="poseidon"]'); await wait(3000);
+  await clk('[data-nav="active"]'); await wait(2400); // dwell on the DvP lot chips
+  // bid on a DvP RFQ (its row carries the delivery-leg chip) so the modal shows the
+  // "you receive N XLM" banner; prefer a fresh-nullifier one
   const bid = await page.evaluate(() => {
-    const els = [...document.querySelectorAll("button.rowact")].filter((e) => e.textContent.trim() === "Bid");
-    const el = els[els.length - 1];
+    const btns = [...document.querySelectorAll('[data-act^="bid:"]')];
+    const dvps = btns.filter((b) => b.closest(".rfq-grid")?.querySelector('[title*="delivery leg"]'));
+    const el = dvps[dvps.length - 1] || btns[btns.length - 1]; // newest DvP = freshest nullifier
     if (el) { el.scrollIntoView({ block: "center" }); el.click(); return true; } return false;
   });
   if (bid) {
-    await wait(2000);
-    await clickText(page, "[data-act='sealbid']", "seal bid");
-    await wait(6000); // proving spinner + result toast
+    await wait(2600); // dwell on the bid modal + DvP delivery banner
+    await clk('[data-act="sealbid"]');
+    await wait(7000); // in-browser proving spinner + result toast
   }
   await wait(1500);
 
