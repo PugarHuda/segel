@@ -75,6 +75,29 @@ Oracle = **Reflector** SEP-40 testnet feed.
 | Freighter / Stellar SDK | real signing + in-browser proving + live reads |
 | MCP server (read-only) | an AI agent can query the live desk (`list_rfqs`, `read_settlement`, `mark_price`) — setup in the README |
 
+## Where Segel fits in Stellar's privacy stack
+
+Stellar's privacy stack is emerging fast — **Confidential Tokens** (OpenZeppelin +
+Nethermind, testnet Developer Preview: hide balances + transfer amounts between
+*known* parties) and **Stellar Private Payments / privacy pools** (hide *parties* +
+amounts). Both are **payment** primitives. Segel occupies a **distinct, complementary
+slot they don't cover: confidential *price discovery*** — a sealed-bid auction where
+losing bids are proven valid but never revealed, and the fair Vickrey price is proven,
+not trusted. (Segel's on-chain Groth16 verifier tooling is itself derived from the
+Stellar private-payments reference workspace — it's built *on* the same privacy
+lineage.)
+
+- **Complementary, not competing:** CT/SPP move value privately; Segel *discovers a
+  price* privately. A confidential token can't run an auction; an auction needs a
+  mechanism + a soundness proof, which is exactly what Segel adds.
+- **Honest future work (a real integration, not a deadline hack):** settle the
+  winning leg through a **Confidential Token** so the *notional/size* stays private
+  while Segel keeps the *price* publicly proven; and pair Segel's ASP allow-list with
+  CT's **auditor view key + selective disclosure** for a fully compliance-aware
+  confidential auction. We deliberately did **not** bolt the brand-new CT preview
+  (Noir/UltraHonk, audits in progress) onto our working Circom/Groth16 stack at the
+  deadline — combining two proof systems safely is a project, not a demo patch.
+
 ## Honest scope (what we do *not* overclaim)
 
 - **The settle prover sees the bid openings.** A sealed-bid settler must, to compute

@@ -116,6 +116,14 @@ values it controls (the authenticated bidder, the RFQ band, the commitments it
 actually recorded). So a valid proof can't be reused with a different bid, a
 spoofed identity, or a different bid set — any mismatch fails verification.
 
+**Where it fits in Stellar's privacy stack.** Confidential Tokens (hide amounts
+between known parties) and Stellar Private Payments (hide parties + amounts) are
+*payment* primitives. Segel fills a distinct, complementary slot they don't: a
+confidential *price-discovery* mechanism — a sealed auction where losing bids are
+proven valid but never revealed. CT/SPP move value privately; Segel discovers a
+price privately. (Future work, honestly: settle the winning leg via a Confidential
+Token so the size stays private while the price stays publicly proven.)
+
 ---
 
 ## Try the MCP server (AI-agent access, read-only)
