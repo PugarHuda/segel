@@ -28,8 +28,11 @@ try {
 
   // ---- Case 1: boot + live RFQ read ----
   console.log("\n[1] boot");
-  await page.goto(base + "/app.html", { waitUntil: "networkidle", timeout: 45000 });
-  await hasText(page, /Active RFQs/, 40000);
+  // domcontentloaded, not networkidle: the app pulls ESM deps from esm.sh which can
+  // keep the network "busy" past the timeout (flaky); the explicit hasText wait below
+  // is the real readiness signal.
+  await page.goto(base + "/app.html", { waitUntil: "domcontentloaded", timeout: 45000 });
+  await hasText(page, /Active RFQs/, 45000);
   await page.waitForFunction(() => !/loading live RFQs/.test(document.body.innerText), { timeout: 40000 }).catch(() => {});
   const boot = await innerText(page);
   ok(/Active RFQs/.test(boot), "desk renders 'Active RFQs'");

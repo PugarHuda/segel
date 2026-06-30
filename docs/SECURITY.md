@@ -100,3 +100,12 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
   a maker can settle as soon as bids land (cutting off later competition) — bidders
   get no on-chain run-to-deadline guarantee. (The related single-bidder-clears-at-0
   flaw and the refund-batching DoS are now **fixed** — see properties 7 and 9.)
+- **Circuit range checks lean on the contract (defense-in-depth).** A deep circuit
+  audit confirmed both circuits are sound (winner = true argmax, clearing = exact
+  second price, all 8 commitments bound, Merkle + nullifier fully constrained, no
+  unconstrained signals, no field-wrap on bid comparisons). One defensive note:
+  `bandMin`/`bandMax`/`availBal` feed 64-bit comparators without an *in-circuit*
+  `Num2Bits`, so their safety relies on the contract pinning them into `(0, 2^64)`
+  (it does: `create_rfq` rejects bands outside that, and `availBal = band_max`).
+  Not exploitable in the deployed system; a standalone circuit reuse would want
+  three explicit `Num2Bits(64)` to be self-contained.
