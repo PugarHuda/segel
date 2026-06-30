@@ -89,8 +89,9 @@ BN254 field ops (no Poseidon host primitive exists — we hand-roll it, bit-iden
 
 ## Deep Stellar / ZK integration (core primitives load-bearing)
 
-Nothing here is namechecked. Each **core** item, if removed, breaks the desk;
-the oracle and wallet are real, working integrations but advisory/optional:
+Nothing here is namechecked. Each **core** item, if removed, breaks the desk. The
+oracle is now consumed at settle (as a sanity circuit-breaker, scoped honestly
+below); the wallet is a real but optional integration:
 
 | Primitive / tool | Where it does real work |
 |---|---|
@@ -100,7 +101,7 @@ the oracle and wallet are real, working integrations but advisory/optional:
 | **Poseidon on-chain** (BN254 host ops) | `poseidon_hash(a,b)` — a circomlib Poseidon hand-rolled on Soroban's BN254 field host ops (there is no Poseidon host primitive), bit-identical to circomlibjs; lets the commitment scheme be verified on-chain, not just asserted |
 | **Soroban** | the whole desk: RFQ state, commit-set, escrow custody, settlement |
 | **Circle USDC SAC** | escrow + settlement in **Circle's canonical testnet USDC** (issuer GBBD47IF…) via its SAC; winner pays clearing to maker, losers refunded |
-| **Reflector oracle (SEP-40)** | _Advisory_ — `mark_price(symbol)` does a real cross-contract `lastprice()` read of the Reflector testnet feed (a live XLM/USDC mark), but settlement does **not** yet consume it; it's the basis for a future oracle-derived maker reserve |
+| **Reflector oracle (SEP-40)** | _Consumed at settle as a sanity circuit-breaker_ — `mark_price(symbol)` does a real cross-contract `lastprice()` read, and (when armed) `settle` **rejects** a clearing total outside ±bps of the lot's live market value. Honest scope: the maker supplies the band + base symbol, so it's a fat-finger / honest-misconfig net, **not** an anti-manipulation control — the `auctionResult` proof remains the real binding on `clearing`. Proven live on-chain: an off-market settle is rejected (`#14`) before proof check, a near-market one passes the guard |
 | **Freighter / embedded key** | real signing of `post_rfq` / `commit_bid` / `settle` |
 
 The contract's **binding** property is the security crux: it never accepts a

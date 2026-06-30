@@ -421,22 +421,30 @@ impl Otc {
             soroban_sdk::panic_with_error!(&env, OtcError::BadClearing);
         }
 
-        // Oracle circuit-breaker (load-bearing Reflector read): when the admin has
-        // armed the guard and this RFQ has a priced base leg, the clearing TOTAL must
-        // sit within ±bps of the lot's live market value, mark_price(base) *
-        // base_amount. Both Reflector price (10^14) and quote/base SACs (10^7) are
-        // scaled so expected = price * base_amount / 10^14 lands in quote stroops
-        // (quote ≈ USD, i.e. USDC). Skipped — never bricks settle — when the guard is
-        // off, the RFQ has no base symbol, or the feed has no price for the symbol.
+        // Oracle sanity circuit-breaker (Reflector read consumed in the money path):
+        // when the admin has armed the guard and this RFQ has a priced base leg, the
+        // clearing TOTAL must sit within ±bps of the lot's live market value,
+        // mark_price(base) * base_amount. Reflector price (10^14) and quote/base SACs
+        // (10^7) scale so expected = price * base_amount / 10^14 lands in quote stroops
+        // (quote ≈ USD, i.e. USDC). It only ever REJECTS a clearing — it can never lock
+        // funds (cancel_expired bypasses it) — and FAILS OPEN (skips) on any unusable
+        // reading: guard off, no base symbol, no feed, non-positive price, or a lot so
+        // large the product overflows. This is a fat-finger / honest-maker net, NOT an
+        // adversarial control: the maker supplies base_symbol and band, so the real
+        // binding on `clearing` is the auctionResult proof below, not this.
         let guard_bps: u32 = env.storage().instance().get(&DataKey::PriceGuardBps).unwrap_or(0);
         if guard_bps > 0 {
             if let Some(sym) = env.storage().persistent().get::<DataKey, Symbol>(&DataKey::BaseSym(rfq_id)) {
                 if let Some(base) = env.storage().persistent().get::<DataKey, BaseLeg>(&DataKey::Base(rfq_id)) {
                     if let Some(price) = Self::read_mark(&env, sym) {
-                        let expected = price.checked_mul(base.amount).unwrap() / 100_000_000_000_000i128;
-                        let tol = expected * (guard_bps as i128) / 10_000i128;
-                        if clearing < expected - tol || clearing > expected + tol {
-                            soroban_sdk::panic_with_error!(&env, OtcError::OutOfOracleBand);
+                        if price > 0 {
+                            if let Some(prod) = price.checked_mul(base.amount) {
+                                let expected = prod / 100_000_000_000_000i128;
+                                let tol = expected * (guard_bps as i128) / 10_000i128;
+                                if clearing < expected - tol || clearing > expected + tol {
+                                    soroban_sdk::panic_with_error!(&env, OtcError::OutOfOracleBand);
+                                }
+                            }
                         }
                     }
                 }

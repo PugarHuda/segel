@@ -68,12 +68,21 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
   the winner pays for the WHOLE escrowed lot — bidders bid a total price for the
   lot, not a unit rate. The maker sizes both the band and the lot, so a misconfig
   only harms the maker's own auction. The oracle price-guard (below) backstops it.
-- **Oracle price-guard (admin circuit-breaker).** When armed (`set_price_guard`),
-  `settle` reads the live Reflector mark and rejects a clearing total outside ±bps
-  of the lot's market value (`mark_price(base) × base_amount`). It's a safety band
-  against fat-finger / manipulated settlement, not a peg; it skips cleanly (never
-  bricks settle) when disabled, when an RFQ has no base symbol, or when the feed
-  has no price. Live band: ±50%.
+- **Oracle price-guard (admin circuit-breaker) — honest scope.** When armed
+  (`set_price_guard`), `settle` reads the live Reflector mark and rejects a clearing
+  total outside ±bps of the lot's market value (`mark_price(base) × base_amount`).
+  It is a **fat-finger / honest-misconfiguration net**, *not* an anti-manipulation
+  control: the maker supplies the band, the base symbol, and the lot size, so an
+  adversarial maker can widen or skip it (e.g. choose a symbol with no feed). The
+  real binding on `clearing` is the `auctionResult` proof (clearing = second-highest
+  *sealed* bid, proven). The guard's value is catching an honest mistake and making
+  the oracle read part of the money path (proven live: an off-market clearing is
+  rejected `#14` before proof verification; a near-market one passes the guard). It
+  **fails open** — never bricks settle — when disabled, when an RFQ has no base
+  symbol, when the feed returns no/zero price, or if the product would overflow; and
+  `cancel_expired` bypasses it entirely, so it can never lock funds. Live band: ±50%.
+  No staleness check (a ±50% band tolerates far more than XLM moves between feed
+  updates); production with a tight band wants one.
 - **DvP delivery + refunds are un-griefable.** Both loser refunds and the winner's
   base-lot delivery use a non-reverting transfer; a recipient who can't receive is
   credited (`claim()` for quote, `claim_base()` for the lot) instead of bricking
