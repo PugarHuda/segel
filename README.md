@@ -59,10 +59,12 @@ oracle that backstops settlement with a price circuit-breaker.
   Works with **no install** (an embedded throwaway testnet key signs) or **connect
   Freighter**.
 - **Run locally:** `npm install && npm run circuit:all && npm run serve` → http://localhost:8000.
-- **Demo video:** a ~1-min auto-captured silent walkthrough ships at
+- **Demo video:** a ~67s **captioned** walkthrough ships at
   [`frontend/segel-demo.mp4`](frontend/segel-demo.mp4) (also live at
-  https://segel.vercel.app/segel-demo.mp4); regenerate with `node scripts/record-demo.mjs`.
-  Narrated 2–3 min script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
+  https://segel.vercel.app/segel-demo.mp4) — on-screen captions explain each step
+  (sealing → ZK bid → settle → selective disclosure), and it seals a **real on-chain
+  bid** during capture. Regenerate with `node scripts/record-demo.mjs`. Narrated
+  script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
 
 ---
 
