@@ -66,11 +66,9 @@ export async function deskState() {
   };
 }
 
-export async function getRfq(id) {
-  const r = await simulate(OTC, "get_rfq_view", u32(id));
-  if (!r.ok) return null;
-  const v = r.value;
-  const bl = await simulate(OTC, "base_leg", u32(id));
+// view ScVal + base_leg ScVal -> RFQ row object. `baseLot` = human XLM lot the
+// winner receives at settle (null = quote-only RFQ).
+function mapRfq(id, v, bl) {
   return {
     id,
     maker: v.maker,
@@ -81,25 +79,36 @@ export async function getRfq(id) {
     bandMax: v.band_max.toString(),
     deadline: Number(v.deadline),
     status: Number(v.status),
-    // delivery leg: human XLM lot the winner receives at settle (null = quote-only RFQ)
-    baseLot: bl.ok && bl.value ? toUsdc(bl.value.amount.toString()) : null,
+    baseLot: bl && bl.ok && bl.value ? toUsdc(bl.value.amount.toString()) : null,
   };
+}
+
+export async function getRfq(id) {
+  const [r, bl] = await Promise.all([simulate(OTC, "get_rfq_view", u32(id)), simulate(OTC, "base_leg", u32(id))]);
+  return r.ok ? mapRfq(id, r.value, bl) : null;
 }
 
 export async function listRfqs() {
   const { rfqCount } = await deskState();
-  const out = [];
-  for (let i = 0; i < rfqCount; i++) {
-    const r = await getRfq(i);
-    if (r) {
-      const bc = await simulate(OTC, "bid_count", u32(i));
+  // Each RFQ needs 4 reads (view, base_leg, bid_count, settlement). Fan them ALL out
+  // in parallel — a sequential loop is 4·N RPC round-trips and made the desk render
+  // "0 live" for seconds while it crawled the list.
+  const rows = await Promise.all(
+    Array.from({ length: rfqCount }, async (_, i) => {
+      const [v, bl, bc, st] = await Promise.all([
+        simulate(OTC, "get_rfq_view", u32(i)),
+        simulate(OTC, "base_leg", u32(i)),
+        simulate(OTC, "bid_count", u32(i)),
+        simulate(OTC, "settlement", u32(i)),
+      ]);
+      if (!v.ok) return null;
+      const r = mapRfq(i, v.value, bl);
       r.bids = bc.ok ? Number(bc.value) : 0;
-      const st = await simulate(OTC, "settlement", u32(i));
       r.settlement = st.ok && st.value ? { clearing: st.value.clearing.toString() } : null;
-      out.push(r);
-    }
-  }
-  return out;
+      return r;
+    })
+  );
+  return rows.filter(Boolean);
 }
 
 export async function bidsOf(rfqId) {

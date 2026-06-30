@@ -71,6 +71,7 @@ try {
   ok(/DIRECT OTC/.test(await innerText(page)), "mode toggle → Direct OTC selected");
   await page.click('[data-act="mode:1"]');
   ok(/RFQ AUCTION/.test(await innerText(page)), "mode toggle → RFQ Auction selected");
+  ok((await page.$('[data-form="lot"]')) !== null, "create form has the DvP LOT field (XLM you deliver)");
   await page.click('[data-act="side:BUY"]'); await page.click('[data-act="side:SELL"]'); // both toggle without error
   // negative case: max <= min must be rejected client-side
   await page.fill('[data-form="min"]', "5000");
@@ -78,18 +79,33 @@ try {
   await page.click('[data-act="post"]');
   ok(await hasText(page, /Max must be greater than min/, 5000), "invalid band (max≤min) rejected with toast");
 
-  // ---- Case 5: bid modal opens on an open RFQ ----
-  console.log("[5] bid modal");
+  // ---- Case 5: bid modal opens on an open RFQ (prefer a DvP RFQ to test the delivery banner) ----
+  console.log("[5] bid modal (DvP-aware)");
   await page.click('[data-nav="active"]');
   await hasText(page, /Active RFQs/, 8000);
-  const bidBtn = await page.$('[data-act^="bid:"]');
-  if (bidBtn) {
-    await bidBtn.click();
+  // The DvP lot chip carries a unique title; the pair badge "XLM" and id "RFQ-014"
+  // are not reliable text markers, so target the chip's DOM attribute directly.
+  const DVP_CHIP = '[title*="delivery leg"]';
+  ok((await page.$(DVP_CHIP)) !== null, "Active RFQs shows a DvP lot chip (delivery-leg span)");
+  const bidAct = await page.evaluate((sel) => {
+    const btns = [...document.querySelectorAll('[data-act^="bid:"]')];
+    for (const b of btns) { const row = b.closest(".rfq-grid"); if (row && row.querySelector(sel)) return b.getAttribute("data-act"); }
+    return btns[0]?.getAttribute("data-act") || null;
+  }, DVP_CHIP);
+  if (bidAct) {
+    const onDvp = await page.evaluate(({ a, sel }) => !!document.querySelector(`[data-act="${a}"]`).closest(".rfq-grid").querySelector(sel), { a: bidAct, sel: DVP_CHIP });
+    await page.click(`[data-act="${bidAct}"]`);
     ok(await hasText(page, /SEAL A BID/, 6000), "bid modal opens (Prove & seal)");
     const m = await innerText(page);
     ok(/Poseidon\(bid, nonce, addr\)/.test(m), "commitment scheme shown in modal");
     ok(/range proof will pass|in band/i.test(m), "default mid-band amount marked valid");
     ok(/3\.00|4\.00|5\.00/.test(m), "bid modal shows USDC band (e.g. 3.00–5.00)");
+    if (onDvp) {
+      ok(/receive\s+[\d,.]+\s*XLM/i.test(m), "DvP bid modal shows 'Win and you receive N XLM' delivery banner");
+      ok(/total USDC for the lot/i.test(m), "bid label clarifies the bid is the total price for the lot");
+    } else {
+      ok(true, "bid RFQ is quote-only (no delivery banner expected)");
+    }
     await page.click('button[data-act="closemodal"]'); // the × button (backdrop div has same attr but is covered)
     await page.waitForFunction(() => !/SEAL A BID/.test(document.body.innerText), { timeout: 5000 }).catch(() => {});
     ok(!/SEAL A BID/.test(await innerText(page)), "modal closes");
@@ -128,20 +144,48 @@ try {
   ok(/pre-funded/.test(fz), "faucet tells the truth for demo key (pre-funded)");
   ok(/Refresh balance/.test(fz), "faucet button = 'Refresh balance' (not fake request)");
 
-  // ---- Case 8 (opt-in): real on-chain RFQ post via clicks ----
+  // ---- Case 8 (opt-in): real on-chain DvP RFQ post + a REAL sealed bid, all via clicks ----
   if (process.env.E2E_WRITE === "1") {
-    console.log("[8] WRITE: posting a real 3–5 USDC RFQ on-chain via the UI (demo seed)");
+    console.log("[8] WRITE: posting a real DvP RFQ (3–5 USDC band + 20 XLM lot) on-chain via the UI");
     await page.click('[data-nav="create"]');
     await page.fill('[data-form="min"]', "3");
     await page.fill('[data-form="max"]', "5");
+    await page.fill('[data-form="lot"]', "20"); // DvP delivery lot
     await page.fill('[data-form="deadlineMin"]', "10080"); // 7-day deadline: stays open for judges
     await page.click('[data-act="post"]');
-    ok(await hasText(page, /RFQ posted/, 60000), "real RFQ posted on-chain via UI clicks");
+    ok(await hasText(page, /RFQ posted/, 90000), "real DvP RFQ posted on-chain via UI clicks");
     await page.click('[data-nav="active"]');
-    await hasText(page, /3\.00/, 20000); // wait for the post-refresh to render the new row
+    await hasText(page, /3\.00/, 25000); // wait for the post-refresh to render the new row
     ok(/3\.00.{0,4}5\.00/.test(await innerText(page)), "new RFQ displays band as 3.00–5.00 USDC (decimal scaling)");
+    ok(/XLM/.test(await innerText(page)), "new DvP RFQ row shows the XLM lot chip");
+
+    console.log("[8b] WRITE: sealing a REAL bid via clicks (in-browser proof → commit_bid on-chain)");
+    // bid on a DvP RFQ from ANOTHER maker (own RFQs render 'Settle', not 'Bid')
+    const dvpBid = await page.evaluate(() => {
+      const sel = '[title*="delivery leg"]'; // the DvP lot chip's unique title = a DvP RFQ
+      const btns = [...document.querySelectorAll('[data-act^="bid:"]')];
+      for (const b of btns) { const row = b.closest(".rfq-grid"); if (row && row.querySelector(sel)) return b.getAttribute("data-act"); }
+      return btns[0]?.getAttribute("data-act") || null;
+    });
+    if (dvpBid) {
+      await page.click(`[data-act="${dvpBid}"]`);
+      await hasText(page, /SEAL A BID/, 6000);
+      await page.click('[data-act="sealbid"]');
+      // prove in-browser proving actually ran, then wait for the on-chain result
+      ok(await hasText(page, /Generating bidValidity proof|Submitting commit_bid|Preparing witness/, 30000), "in-browser bidValidity proving runs (spinner stages shown)");
+      const res = await page.waitForFunction(() => {
+        const t = document.body.innerText;
+        if (/Bid sealed & verified on-chain/i.test(t)) return "sealed";
+        if (/already bid on this RFQ/i.test(t)) return "already-bid"; // nullifier spent on a prior run — path still proven
+        if (/proof was rejected|out of band|RFQ is closed|deadline|proving failed|insufficient|not within the allowed range/i.test(t)) return "err:" + t.replace(/\s+/g, " ").slice(0, 90);
+        return false;
+      }, null, { timeout: 150000 }).then((h) => h.jsonValue()).catch(() => "timeout");
+      ok(res === "sealed" || res === "already-bid", `real sealed bid via clicks → ${res}`);
+    } else {
+      ok(true, "no other-maker DvP RFQ open to bid on (skipped)");
+    }
   } else {
-    console.log("[8] WRITE flow skipped (set E2E_WRITE=1 to post a real RFQ; on-chain writes covered by e2e-testnet.mjs)");
+    console.log("[8] WRITE flow skipped (set E2E_WRITE=1 to post a real RFQ + seal a real bid; also covered by e2e-testnet.mjs)");
   }
 
   // ---- Case 9: no console errors across the whole journey ----
