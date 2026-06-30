@@ -245,6 +245,10 @@ npm run serve                # -> http://localhost:8000
 
 # C) Full live flow on testnet (post -> 3 sealed bids -> Vickrey settle)
 node scripts/e2e-testnet.mjs
+
+# D) Seed a rich live data set (settled auctions + open auctions w/ bids + directed +
+#    reserved, varied pairs) so the desk looks like a real market
+npm run seed:scenarios
 ```
 
 **On-chain** (contracts already deployed — IDs above):
