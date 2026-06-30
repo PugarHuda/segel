@@ -127,6 +127,7 @@ pub enum OtcError {
     NoBids = 11,
     AlreadySettled = 12,
     NothingToClaim = 13,
+    OutOfOracleBand = 14,
 }
 
 #[contracttype]
@@ -145,6 +146,9 @@ enum DataKey {
     Settled(u32),
     Claimable(u32, Address),
     Base(u32),
+    BaseSym(u32),                  // DvP base asset's oracle symbol (for the price guard)
+    BaseClaimable(u32, Address),   // base lot a delivery transfer couldn't push (pull via claim_base)
+    PriceGuardBps,                 // admin oracle circuit-breaker tolerance; 0 = off
 }
 
 #[contract]
@@ -260,6 +264,9 @@ impl Otc {
     /// winner receives that lot atomically against paying the clearing price; on
     /// `cancel_expired` it returns to the maker. A genuine two-asset OTC swap rather
     /// than a one-sided payment. `base_amount == 0` behaves like a plain `post_rfq`.
+    /// `clearing` is the TOTAL quote (USDC) paid for the WHOLE lot — bidders bid a
+    /// total price for the lot, not a per-unit rate. `base_symbol` is the lot asset's
+    /// Reflector symbol (e.g. "XLM"), used only by the optional oracle price guard.
     pub fn post_rfq_dvp(
         env: Env,
         maker: Address,
@@ -271,8 +278,15 @@ impl Otc {
         deadline: u64,
         base_token: Address,
         base_amount: i128,
+        base_symbol: Symbol,
     ) -> u32 {
         if base_amount < 0 {
+            soroban_sdk::panic_with_error!(&env, OtcError::InvalidAmount);
+        }
+        // The sell-side lot must be a DIFFERENT asset than the quote/escrow token —
+        // otherwise the lot and every bidder's good-faith escrow commingle in one
+        // balance and a settle could pay the winner out of other RFQs' escrow.
+        if base_amount > 0 && base_token == Self::token_address(env.clone()) {
             soroban_sdk::panic_with_error!(&env, OtcError::InvalidAmount);
         }
         let id = Self::create_rfq(&env, maker.clone(), pair, side, mode, band_min, band_max, deadline);
@@ -287,10 +301,26 @@ impl Otc {
                 &DataKey::Base(id),
                 &BaseLeg { token: base_token.clone(), amount: base_amount },
             );
+            env.storage().persistent().set(&DataKey::BaseSym(id), &base_symbol);
             Self::bump(&env, &DataKey::Base(id));
+            Self::bump(&env, &DataKey::BaseSym(id));
             env.events().publish((symbol_short!("baseleg"), id), (base_token, base_amount));
         }
         id
+    }
+
+    /// Admin-only: arm the Reflector oracle circuit-breaker. When `bps > 0`, `settle`
+    /// rejects a clearing total that sits outside ±`bps`/10000 of the live market
+    /// value of a DvP RFQ's lot (`mark_price(base_symbol) * base_amount`). A safety
+    /// band against fat-finger/manipulated settlement — not a price peg. 0 disables it.
+    pub fn set_price_guard(env: Env, bps: u32) {
+        Self::require_admin(&env);
+        env.storage().instance().set(&DataKey::PriceGuardBps, &bps);
+        Self::bump_instance(&env);
+        env.events().publish((symbol_short!("pxguard"),), bps);
+    }
+    pub fn price_guard(env: Env) -> u32 {
+        env.storage().instance().get(&DataKey::PriceGuardBps).unwrap_or(0)
     }
 
     /// Seal a bid: verify the `bidValidity` proof, record the commitment, and lock
@@ -391,6 +421,28 @@ impl Otc {
             soroban_sdk::panic_with_error!(&env, OtcError::BadClearing);
         }
 
+        // Oracle circuit-breaker (load-bearing Reflector read): when the admin has
+        // armed the guard and this RFQ has a priced base leg, the clearing TOTAL must
+        // sit within ±bps of the lot's live market value, mark_price(base) *
+        // base_amount. Both Reflector price (10^14) and quote/base SACs (10^7) are
+        // scaled so expected = price * base_amount / 10^14 lands in quote stroops
+        // (quote ≈ USD, i.e. USDC). Skipped — never bricks settle — when the guard is
+        // off, the RFQ has no base symbol, or the feed has no price for the symbol.
+        let guard_bps: u32 = env.storage().instance().get(&DataKey::PriceGuardBps).unwrap_or(0);
+        if guard_bps > 0 {
+            if let Some(sym) = env.storage().persistent().get::<DataKey, Symbol>(&DataKey::BaseSym(rfq_id)) {
+                if let Some(base) = env.storage().persistent().get::<DataKey, BaseLeg>(&DataKey::Base(rfq_id)) {
+                    if let Some(price) = Self::read_mark(&env, sym) {
+                        let expected = price.checked_mul(base.amount).unwrap() / 100_000_000_000_000i128;
+                        let tol = expected * (guard_bps as i128) / 10_000i128;
+                        if clearing < expected - tol || clearing > expected + tol {
+                            soroban_sdk::panic_with_error!(&env, OtcError::OutOfOracleBand);
+                        }
+                    }
+                }
+            }
+        }
+
         // Build the auction public inputs from the RECORDED set (binding), padded
         // to N with the canonical empty slot:
         // [rfqId, winnerAddr, clearing, commit[0..N], bidder[0..N]]
@@ -448,12 +500,13 @@ impl Otc {
             token.transfer(&contract, &rfq.maker, &clearing);
         }
         // Delivery leg (DvP): hand the maker's escrowed sell-side lot to the winner,
-        // atomically against the payment above. A hard transfer — the winner wants
-        // the asset, and a winner who can't receive only hurts themselves (unlike a
-        // loser refund, this is not a griefing vector).
+        // atomically against the payment above. Non-reverting (try_transfer): if the
+        // winner can't receive it (e.g. dropped the base trustline), credit it as a
+        // base-claimable they pull via claim_base — so a winner who can't receive can
+        // never brick the whole settlement (maker payout + loser refunds still land).
         if let Some(base) = env.storage().persistent().get::<DataKey, BaseLeg>(&DataKey::Base(rfq_id)) {
-            TokenClient::new(&env, &base.token).transfer(&contract, &winner, &base.amount);
-            env.storage().persistent().remove(&DataKey::Base(rfq_id)); // delivered; base_leg() now reads null
+            Self::deliver_or_credit(&env, &base.token, &winner, base.amount, rfq_id);
+            env.storage().persistent().remove(&DataKey::Base(rfq_id)); // delivered/credited; base_leg() reads null
         }
         let surplus = rfq.band_max - clearing;
         if surplus > 0 {
@@ -488,10 +541,10 @@ impl Otc {
 
         let contract = env.current_contract_address();
         let token = Self::token(&env);
-        // return the maker's escrowed sell-side lot (DvP base leg), if any
+        // return the maker's escrowed sell-side lot (DvP base leg), if any (non-reverting)
         if let Some(base) = env.storage().persistent().get::<DataKey, BaseLeg>(&DataKey::Base(rfq_id)) {
-            TokenClient::new(&env, &base.token).transfer(&contract, &rfq.maker, &base.amount);
-            env.storage().persistent().remove(&DataKey::Base(rfq_id)); // refunded; base_leg() now reads null
+            Self::deliver_or_credit(&env, &base.token, &rfq.maker, base.amount, rfq_id);
+            env.storage().persistent().remove(&DataKey::Base(rfq_id)); // refunded/credited; base_leg() reads null
         }
         let mut j = 0u32;
         while j < count {
@@ -520,6 +573,25 @@ impl Otc {
     /// Refund still owed to `bidder` for `rfq_id` (0 if none / already claimed).
     pub fn claimable(env: Env, rfq_id: u32, bidder: Address) -> i128 {
         env.storage().persistent().get(&DataKey::Claimable(rfq_id, bidder)).unwrap_or(0)
+    }
+
+    /// Pull a DvP base lot a delivery transfer couldn't push (winner couldn't receive
+    /// at settle, or maker at cancel). Claimed once `who` can receive the asset again.
+    pub fn claim_base(env: Env, rfq_id: u32, who: Address) {
+        who.require_auth();
+        let key = DataKey::BaseClaimable(rfq_id, who.clone());
+        let bl: BaseLeg = match env.storage().persistent().get(&key) {
+            Some(b) => b,
+            None => soroban_sdk::panic_with_error!(&env, OtcError::NothingToClaim),
+        };
+        env.storage().persistent().remove(&key); // effects before interaction (no double-claim)
+        TokenClient::new(&env, &bl.token).transfer(&env.current_contract_address(), &who, &bl.amount);
+        env.events().publish((symbol_short!("clmbase"), rfq_id), (who, bl.amount));
+    }
+
+    /// DvP base lot still owed to `who` for `rfq_id` (None if none / already claimed).
+    pub fn base_claimable(env: Env, rfq_id: u32, who: Address) -> Option<BaseLeg> {
+        env.storage().persistent().get(&DataKey::BaseClaimable(rfq_id, who))
     }
 
     /// On-chain Poseidon(2) computed with BN254 host field ops — returns the SAME
@@ -610,6 +682,30 @@ impl Otc {
             env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND);
             env.events().publish((symbol_short!("credit"), rfq_id), (to.clone(), amt));
         }
+    }
+    /// Deliver a DvP base lot to `to`; if the transfer traps (e.g. no base trustline),
+    /// credit it as a base-claimable instead of reverting the whole settle/cancel.
+    /// At most one base recipient per RFQ (winner at settle / maker at cancel), so a
+    /// plain set (not accumulate) is correct.
+    fn deliver_or_credit(env: &Env, token_addr: &Address, to: &Address, amount: i128, rfq_id: u32) {
+        let contract = env.current_contract_address();
+        if TokenClient::new(env, token_addr).try_transfer(&contract, to, &amount).is_err() {
+            let key = DataKey::BaseClaimable(rfq_id, to.clone());
+            env.storage().persistent().set(&key, &BaseLeg { token: token_addr.clone(), amount });
+            env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND);
+            env.events().publish((symbol_short!("crbase"), rfq_id), (to.clone(), amount));
+        }
+    }
+    /// Live Reflector mark for `symbol` as a raw i128 (10^14-scaled), or None if no
+    /// oracle is wired or the feed has no price. Used by the settle price guard.
+    fn read_mark(env: &Env, symbol: Symbol) -> Option<i128> {
+        let oracle: Address = env.storage().instance().get(&DataKey::Oracle)?;
+        let pd: Option<PriceData> = env.invoke_contract(
+            &oracle,
+            &Symbol::new(env, "lastprice"),
+            vec![env, OracleAsset::Other(symbol).into_val(env)],
+        );
+        pd.map(|p| p.price)
     }
     fn fr(_env: &Env, b: &BytesN<32>) -> Bn254Fr {
         Bn254Fr::from_bytes(b.clone())

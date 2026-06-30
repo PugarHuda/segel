@@ -178,6 +178,7 @@ export async function postRfq({ pair, side, mode, bandMin, bandMax, deadline, ba
       deadline: BigInt(deadline),
       base_token: XLM_SAC,
       base_amount: toStroops(baseAmount), // 7-dec stroops, same scale as XLM SAC
+      base_symbol: "XLM", // lot asset's Reflector symbol (the only base the desk uses) — feeds the settle oracle guard
     });
     const res = await at.signAndSend();
     return { ok: true, hash: hashOf(res), id: at.result };

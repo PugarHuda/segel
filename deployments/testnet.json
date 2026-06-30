@@ -35,7 +35,14 @@
     "previousContractIds": ["CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR", "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3"],
     "wasm": "contracts/otc/",
     "constructor": ["admin", "token", "bid_verifier", "auction_verifier", "asp_root", "oracle"],
-    "functions": ["post_rfq", "post_rfq_dvp", "commit_bid", "settle", "cancel_expired", "claim", "claimable", "set_verifiers", "set_admin", "set_oracle", "set_token", "upgrade", "mark_price", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "base_leg", "balance", "admin", "verifiers", "oracle", "token_address"],
+    "functions": ["post_rfq", "post_rfq_dvp", "commit_bid", "settle", "cancel_expired", "claim", "claimable", "claim_base", "base_claimable", "set_verifiers", "set_admin", "set_oracle", "set_token", "set_price_guard", "price_guard", "upgrade", "mark_price", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "base_leg", "balance", "admin", "verifiers", "oracle", "token_address"],
+    "dvpHardeningUpgrade": {
+      "note": "Post-DvP-audit hardening + oracle-as-circuit-breaker, applied live via upgrade() (SAME id). (M1) post_rfq_dvp rejects base_token == quote token, so the sell-side lot can't commingle with bidders' escrow. (M3) the winner's base delivery is now NON-reverting (try_transfer): a winner who can't receive the lot is credited a base-claimable and pulls it via claim_base() — settle never bricks. (Oracle, load-bearing) set_price_guard(bps) arms a Reflector circuit-breaker: settle reads the live mark and rejects a clearing total outside ±bps of the lot's market value (mark_price(base) * base_amount); skips cleanly when off / no symbol / no feed. post_rfq_dvp gains base_symbol (the lot's oracle symbol). Backward-compatible (additive storage keys; pre-upgrade RFQs simply have no base symbol and skip the guard).",
+      "priceGuardArmed": "5000 bps (±50%)",
+      "wasmHash": "2c437aadf248bb709907dde6e576c4c3d3ef51b92abbfc72b07c906324e32f05",
+      "uploadTx": "https://stellar.expert/explorer/testnet/tx/25878a89dda3726a89fd46cfb9396bb2af4027348dae7592a7a038d37aa2b366",
+      "upgradeTx": "https://stellar.expert/explorer/testnet/tx/ee830a49bfa74fcd7dca4f9f54d546f7776ffa919b4c8171a889e811edb2e255"
+    },
     "dvpUpgrade": {
       "note": "Two-asset delivery-vs-payment (DvP) added live via upgrade() — SAME contract id, fully backward-compatible (existing quote-only RFQs untouched). post_rfq_dvp lets a maker escrow a sell-side lot (a second SAC, e.g. native XLM) up front; settle delivers that lot to the winner atomically against the winner's USDC payment, and cancel_expired returns it to the maker. The leg key is cleared on delivery/refund, so base_leg() reads null afterward. The desk is now a real swap, not a one-sided payment.",
       "baseAsset": "native XLM SAC CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
@@ -61,7 +68,8 @@
       "provider": "Reflector (SEP-40)",
       "feed": "External CEX & DEX prices (testnet)",
       "contractId": "CCYOZJCOPG34LLQQ7N24YXBM7LL62R7ONMZ3G6WZAAYPB5OYKOMJRN63",
-      "usage": "mark_price(symbol) does a real cross-contract lastprice() read — live market mark (USD, 14 decimals) for XLM/USDC etc.; lets makers/takers sanity-check a sealed auction vs the market and is the basis for a future oracle-derived maker reserve",
+      "usage": "LOAD-BEARING in settlement: mark_price(symbol) does a real cross-contract lastprice() read, and when the admin arms set_price_guard(bps) the settle path reads the live mark and REJECTS a clearing total outside ±bps of the DvP lot's market value (mark_price(base) * base_amount). A fat-finger/manipulation circuit-breaker, not a peg; skips cleanly when off / no base symbol / no feed so it never bricks settle. Also surfaced read-only in the UI Audit tab + as an MCP tool.",
+      "priceGuard": "armed at 5000 bps (±50%) on the live contract; verified live: a clearing of 4.20 USDC against a ~3.45 USDC mark (XLM 0.1724 * 20) settled within band",
       "liveSample": "mark_price(XLM) -> ~0.176 USD, mark_price(USDC) -> ~1.001 USD (verified on-chain)"
     },
     "security": {
@@ -72,12 +80,13 @@
       "reserve": "settle requires clearing >= band_min, so a single-bidder auction (Vickrey runner-up = padded 0) can no longer clear at 0",
       "refundSafety": "settle/cancel_expired refund via a NON-reverting transfer; a failed refund (e.g. a bidder dropped their USDC trustline) is credited as a claimable balance instead of bricking the whole batch — pulled later via claim(). One bidder cannot DoS settlement or the cancel cleanup",
       "adminControls": "admin-gated set_verifiers (rotate a buggy verifier — previously immutable), set_admin (hand over the role), set_oracle (swap the price feed), set_token (migrate the escrow asset), and upgrade (in-place WASM upgrade, keeps the contract id); instance-storage TTL is extended on every state change so config cannot expire",
-      "dvp": "post_rfq_dvp escrows the maker's sell-side lot at post; settle hands it to the winner with a hard transfer (the winner wants the asset — a winner who can't receive only hurts themselves, so unlike a loser refund this is not a griefing vector) atomically against the USDC payment; cancel_expired returns it to the maker. Delivery/refund clears the leg key (no double-delivery; base_leg() reads null after)",
-      "unitTests": "22/22 passing (contracts/otc/src/test.rs), incl. dvp_delivers_base_to_winner + dvp_cancel_returns_base_to_maker"
+      "dvp": "post_rfq_dvp escrows the maker's sell-side lot at post (must be a DIFFERENT asset than the quote token, enforced — else lot and escrow would commingle); settle delivers it to the winner atomically against the USDC payment; cancel_expired returns it to the maker. Delivery is NON-reverting: a winner who can't receive is credited a base-claimable (claim_base()) so settle never bricks. clearing is the TOTAL quote for the whole lot (per-lot pricing, not per-unit). Delivery/refund clears the leg key (no double-delivery; base_leg() reads null after)",
+      "oracleGuard": "when armed (set_price_guard bps>0), settle additionally requires the clearing total to sit within ±bps of mark_price(base)*base_amount — the Reflector oracle is consumed in the money path, not merely advisory. Skips when off / no base symbol / no feed",
+      "unitTests": "26/26 passing (contracts/otc/src/test.rs); DvP + base≠quote guard + base-claimable fallback + oracle price-guard (allow + reject) all covered"
     }
   },
   "e2eLive": {
-    "description": "Full sealed-bid OTC flow verified live on testnet in REAL Circle USDC (scripts/e2e-testnet.mjs): post RFQ -> 3 sealed bids with real bidValidity proofs -> Vickrey settle. Winner bid 4900, clearing price 4200 (second-highest); losing bids never revealed on-chain. Escrow + payouts are Circle's canonical testnet USDC.",
+    "description": "Full sealed-bid OTC flow verified live on testnet in REAL Circle USDC (scripts/e2e-testnet.mjs): post RFQ -> 3 sealed bids with real bidValidity proofs -> Vickrey settle. Winning bid 4.90 USDC, clearing price 4.20 USDC (second-highest of 4.90/4.20/3.80); losing bids never revealed on-chain. Escrow + payouts are Circle's canonical testnet USDC. (Superseded by e2eLiveDvp below, which adds the two-asset delivery leg + oracle guard.)",
     "postRfq": "https://stellar.expert/explorer/testnet/tx/e7c8668528c39adf4dd512d569d11bb18877643b9f7117f4372a478a44c478ca",
     "commitBids": [
       "https://stellar.expert/explorer/testnet/tx/af723ff7361c4a239d88acc4de4cb3d8c1d2a67c5d08eac0de60d136e94035d3",
@@ -87,11 +96,13 @@
     "settle": "https://stellar.expert/explorer/testnet/tx/6cdba51be153182a47c372107e4885665541fe2591de781c09c73ad897ae3ee5"
   },
   "e2eLiveDvp": {
-    "description": "Full TWO-ASSET DvP flow verified live on testnet (scripts/e2e-testnet.mjs): maker escrows a 20 XLM sell-side lot at post_rfq_dvp -> 3 sealed USDC bids with real bidValidity proofs -> Vickrey settle delivers the 20 XLM to the winner against their USDC payment. Verified by reading the desk's XLM SAC balance: it rises by 20 at post and falls by 20 at settle (delivery proven on-chain), and the script throws if the lot is not delivered.",
-    "rfqId": 10,
+    "description": "Full TWO-ASSET DvP flow verified live on testnet WITH the Reflector oracle price-guard armed (±50%) (scripts/e2e-testnet.mjs): maker escrows a 20 XLM sell-side lot at post_rfq_dvp -> 3 sealed USDC bids with real bidValidity proofs -> Vickrey settle delivers the 20 XLM to the winner against their USDC payment, after settle reads the live Reflector mark and confirms the 4.20 USDC clearing is within band of the ~3.45 USDC lot value. Verified by reading the desk's XLM SAC balance: it rises by 20 at post and falls by 20 at settle (delivery proven on-chain), and the script throws if the lot is not delivered.",
+    "rfqId": 13,
     "baseLotXlm": 20,
-    "postRfqDvp": "https://stellar.expert/explorer/testnet/tx/05d7033de092c0ffd0bfe2d6db2b538a924e760e946c28677d6221c63a38579a",
-    "settle": "https://stellar.expert/explorer/testnet/tx/7ccc7266edf5942c9b4d24480ea323d99e80f7f2bdecd9399a4032761cda11c4"
+    "clearingUsdc": 4.20,
+    "priceGuardArmed": "5000 bps",
+    "postRfqDvp": "https://stellar.expert/explorer/testnet/tx/a16e4dae39c9595dd8dd2fcb4fdd44d30fc88eca10385d2cb7e63767706875e1",
+    "settle": "https://stellar.expert/explorer/testnet/tx/95dfea5077c2ba29d5357a2e0b6fd93d3098fbbefcf5062f7ad241ed7b00c41e"
   },
   "circuits": {
     "system": "Groth16 over BN254",

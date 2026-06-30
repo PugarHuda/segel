@@ -11,9 +11,11 @@ pragma circom 2.1.6;
 //   2. IN-BAND        bandMin <= bid <= bandMax               — a malformed /
 //                     out-of-band bid dies on arrival, amount never leaks.
 //   3. PROOF-OF-FUNDS bid <= availBal                         — the bidder can
-//                     actually honor the bid. `availBal` is the bidder's real
-//                     on-chain USDC balance, which the contract reads and pins
-//                     as a public input — so a hidden bid is bound to real funds.
+//                     actually honor the bid. The contract pins `availBal` to
+//                     `band_max` (the public escrow) and then transfers that
+//                     escrow from the bidder, which MUST succeed — so the hidden
+//                     bid is bound to real funds (a live-balance read would be
+//                     racy; the escrow transfer is the stronger witness).
 //   4. ALLOWLIST      Poseidon(idSecret) in the ASP allow-list (Merkle root
 //                     public) — compliant access, the KYC identity stays hidden.
 //   5. NULLIFIER      nullifier = Poseidon(idSecret, rfqId)   — one bid per

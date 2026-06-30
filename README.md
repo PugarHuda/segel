@@ -8,10 +8,18 @@ where **bid amounts are cryptographically sealed**, the **fair clearing price is
 proven correct in zero-knowledge** (Vickrey / second-price), and **every losing
 bid stays hidden forever** — while the whole thing remains verifiable on-chain.
 
+**Why it matters:** OTC desks leak. The moment a large block trade's bids are
+visible, the market front-runs them — so price discovery for size happens in
+opaque chat rooms you have to trust. Segel is a sealed-bid desk where the losing
+bids are *never revealed* — not to the chain, the public, or competing desks — and
+the fair Vickrey clearing price is **proven, not trusted**. Confidentiality without
+a trusted operator: exactly the real-world problem zero-knowledge is for.
+
 Built for the [Stellar Hacks: Real-World ZK](https://dorahacks.io/hackathon/stellar-hacks-zk)
 hackathon. Two Circom/Groth16/BN254 circuits do the real work; a Soroban contract
 verifies the proofs on-chain and escrows + settles in **Circle's real testnet
-USDC**, with a live Reflector price oracle.
+USDC**, delivers the sell-side lot to the winner (DvP), and reads a live Reflector
+oracle that backstops settlement with a price circuit-breaker.
 
 ---
 
@@ -131,7 +139,7 @@ spoofed identity, or a different bid set — any mismatch fails verification.
   the winner atomically against their USDC payment, `cancel_expired` returns it to
   the maker. Verified live: the desk's XLM balance rises by the lot at post and
   falls by it at settle. The desk is a real swap, not a one-sided payment.
-- **22/22 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
+- **26/26 contract unit tests** (`contracts/otc/src/test.rs`) + a full live e2e
   (`scripts/e2e-testnet.mjs`): post a 20 XLM lot → 3 sealed bids → Vickrey settle
   with delivery, on testnet.
 
@@ -185,7 +193,7 @@ node scripts/e2e-testnet.mjs
 
 **On-chain** (contracts already deployed — IDs above):
 - Build a verifier WASM: `bash scripts/wsl-build-verifier.sh circuits/build/<name>_vk.json <out>.wasm`
-- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 22/22)
+- Build the desk: `bash scripts/wsl-build-otc.sh` (`cargo test` in `contracts/otc` → 26/26)
 - Deploy: `bash scripts/wsl-deploy.sh`
 
 > Soroban contract builds run in **WSL/Linux** — Windows lacks the MSVC `link.exe`

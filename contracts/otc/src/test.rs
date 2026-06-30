@@ -325,7 +325,7 @@ fn dvp_delivers_base_to_winner() {
 
     let id = c.otc.post_rfq_dvp(
         &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
-        &100, &500, &1000, &base_addr, &800,
+        &100, &500, &1000, &base_addr, &800, &symbol_short!("XLM"),
     );
     assert_eq!(base.balance(&c.maker), 200); // 800 lot escrowed at post
     assert_eq!(base.balance(&c.otc.address), 800); // held by the desk
@@ -356,7 +356,7 @@ fn dvp_cancel_returns_base_to_maker() {
 
     let id = c.otc.post_rfq_dvp(
         &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
-        &100, &500, &1000, &base_addr, &800,
+        &100, &500, &1000, &base_addr, &800, &symbol_short!("XLM"),
     );
     let t = bidder(&env, &c, 1000);
     c.otc.commit_bid(&t, &id, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
@@ -366,6 +366,89 @@ fn dvp_cancel_returns_base_to_maker() {
     assert!(c.otc.base_leg(&id).is_none()); // leg cleared after refund
     assert_eq!(c.token.balance(&t), 1000); // bidder refunded
     assert_eq!(c.otc.get_rfq_view(&id).status, ST_CANCELLED);
+}
+
+// M1: the sell-side lot must be a DIFFERENT asset than the quote/escrow token, or
+// the lot and bidders' escrow commingle and a settle could pay out of other RFQs.
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")] // InvalidAmount
+fn dvp_rejects_base_equal_quote_token() {
+    let env = Env::default();
+    let c = setup(&env);
+    let quote = c.token.address.clone();
+    c.otc.post_rfq_dvp(
+        &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
+        &100, &500, &1000, &quote, &800, &symbol_short!("USDC"),
+    );
+}
+
+// M3: a winner who can't receive the base lot must not brick settlement — the lot
+// is credited as base-claimable and pulled later, exactly like loser refunds.
+#[test]
+fn dvp_base_credited_when_winner_cant_receive_then_claimed() {
+    let env = Env::default();
+    let c = setup(&env);
+    let w = bidder(&env, &c, 1000); // winner, holds quote
+    // BASE token traps paying the winner (simulates no base trustline).
+    let base_tok = env.register(MockToken, (w.clone(),));
+    let base = MockTokenClient::new(&env, &base_tok);
+    base.mint(&c.maker, &800);
+    let id = c.otc.post_rfq_dvp(
+        &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
+        &100, &500, &1000, &base_tok, &800, &symbol_short!("XLM"),
+    );
+    assert_eq!(base.balance(&c.otc.address), 800); // lot escrowed
+    c.otc.commit_bid(&w, &id, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
+    c.otc.settle(&id, &dummy_proof(&env), &w, &300);
+    assert_eq!(c.otc.get_rfq_view(&id).status, ST_SETTLED); // settle still completed
+    assert_eq!(base.balance(&w), 0); // delivery trapped, not delivered
+    assert_eq!(c.otc.base_claimable(&id, &w).unwrap().amount, 800); // credited instead
+    assert!(c.otc.base_leg(&id).is_none()); // base key cleared
+    base.unblock();
+    c.otc.claim_base(&id, &w); // winner pulls the lot once they can receive
+    assert_eq!(base.balance(&w), 800);
+    assert!(c.otc.base_claimable(&id, &w).is_none());
+}
+
+// Oracle circuit-breaker: a clearing total near the live Reflector mark settles.
+// MockOracle XLM = 0.1765 USD; a 1700 lot -> expected ~300 quote stroops.
+#[test]
+fn oracle_guard_allows_clearing_near_mark() {
+    let env = Env::default();
+    let c = setup(&env);
+    let base_obj = env.register_stellar_asset_contract_v2(Address::generate(&env));
+    let base_addr = base_obj.address();
+    let base = TokenClient::new(&env, &base_addr);
+    StellarAssetClient::new(&env, &base_addr).mint(&c.maker, &2000);
+    let id = c.otc.post_rfq_dvp(
+        &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
+        &100, &500, &1000, &base_addr, &1700, &symbol_short!("XLM"),
+    );
+    c.otc.set_price_guard(&5000); // ±50%
+    let w = bidder(&env, &c, 1000);
+    c.otc.commit_bid(&w, &id, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
+    c.otc.settle(&id, &dummy_proof(&env), &w, &300); // within ±50% of ~300
+    assert_eq!(base.balance(&w), 1700); // delivered
+}
+
+// Oracle circuit-breaker: a clearing inside the RFQ band but far off the market
+// mark is rejected (guard tight at ±10%; expected ~300, clearing 450).
+#[test]
+#[should_panic(expected = "Error(Contract, #14)")] // OutOfOracleBand
+fn oracle_guard_rejects_off_market_clearing() {
+    let env = Env::default();
+    let c = setup(&env);
+    let base_obj = env.register_stellar_asset_contract_v2(Address::generate(&env));
+    let base_addr = base_obj.address();
+    StellarAssetClient::new(&env, &base_addr).mint(&c.maker, &2000);
+    let id = c.otc.post_rfq_dvp(
+        &c.maker, &symbol_short!("XLMUSDC"), &symbol_short!("SELL"), &1,
+        &100, &500, &1000, &base_addr, &1700, &symbol_short!("XLM"),
+    );
+    c.otc.set_price_guard(&1000); // ±10% -> band ~[270,330]
+    let w = bidder(&env, &c, 1000);
+    c.otc.commit_bid(&w, &id, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
+    c.otc.settle(&id, &dummy_proof(&env), &w, &450); // in RFQ band 100-500 but off-market
 }
 
 #[test]

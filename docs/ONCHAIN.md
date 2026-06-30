@@ -12,7 +12,7 @@ npm run circuit:all
 bash scripts/wsl-build-verifier.sh circuits/build/bidValidity_vk.json   bid_verifier.wasm
 bash scripts/wsl-build-verifier.sh circuits/build/auctionResult_vk.json auction_verifier.wasm
 
-# desk contract (WSL) — cargo test -> 22/22
+# desk contract (WSL) — cargo test -> 26/26
 bash scripts/wsl-build-otc.sh
 ```
 
@@ -47,14 +47,16 @@ Tampering any public input → rejected on-chain (`Error(Contract, #0)`).
 node scripts/e2e-testnet.mjs
 ```
 
-Posts an RFQ, seals 3 bids (real `bidValidity` proofs, escrow locked), and settles
-with a real `auctionResult` proof (Vickrey). Verified live:
+Posts a DvP RFQ (maker escrows a 20 XLM lot), seals 3 bids (real `bidValidity`
+proofs, escrow locked), and settles with a real `auctionResult` proof (Vickrey) —
+delivering the lot to the winner with the oracle price-guard armed. Verified live
+(RFQ #13, clearing 4.20 USDC = second-highest of 4.90/4.20/3.80):
 
 | Step | tx |
 |---|---|
-| post_rfq | [`9e37218f…`](https://stellar.expert/explorer/testnet/tx/9e37218f4a7411ac4226cd3883c02af0f9dd0b83ef36f766c03523837e001c55) |
-| commit_bid ×3 | [`f38279e6…`](https://stellar.expert/explorer/testnet/tx/f38279e66bfa7e968f7df82791a98d4857a975570823cbf30aabf4efd79351b8) · [`c565bf66…`](https://stellar.expert/explorer/testnet/tx/c565bf661023983374f7286f66053283b10af66733fe54e13a8e72baff22dfae) · [`1c20f8b8…`](https://stellar.expert/explorer/testnet/tx/1c20f8b85187662660b8abae1550e53f9ca4ae6f40681d23d85de8f7b7b50848) |
-| settle (Vickrey, clearing 4200) | [`201ed29f…`](https://stellar.expert/explorer/testnet/tx/201ed29f3150113b7947fd55e653327c1a3d8c8ba3f716e46271b766e6f84d03) |
+| post_rfq_dvp | [`a16e4dae…`](https://stellar.expert/explorer/testnet/tx/a16e4dae39c9595dd8dd2fcb4fdd44d30fc88eca10385d2cb7e63767706875e1) |
+| commit_bid ×3 | [`02afe9fc…`](https://stellar.expert/explorer/testnet/tx/02afe9fc9ca8b4b465ec477f3e9abddaad5a6d2ae63f34ba1555e31c9c3ec495) · [`ebb0e1da…`](https://stellar.expert/explorer/testnet/tx/ebb0e1dae4563b76c916b50764d1d0ec00a1aadb64fced206699dc620a26815e) · [`6bf575b4…`](https://stellar.expert/explorer/testnet/tx/6bf575b430fcf3ce610fa97615f0769181bceff5196b176b6971a3572914cf07) |
+| settle (Vickrey, clearing 4.20 USDC, 20 XLM delivered) | [`95dfea50…`](https://stellar.expert/explorer/testnet/tx/95dfea5077c2ba29d5357a2e0b6fd93d3098fbbefcf5062f7ad241ed7b00c41e) |
 
 > Soroban builds run in **WSL/Linux** (Windows lacks MSVC `link.exe`). The verifier
 > crate is built from V1's `_reference/stellar-private-payments` workspace.
