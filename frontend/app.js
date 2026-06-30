@@ -78,10 +78,14 @@ function sidebar() {
     ["activity", "history", "My Activity"], ["portfolio", "account_balance_wallet", "Portfolio"],
     ["audit", "verified_user", "Audit"], ["faucet", "water_drop", "Faucet"], ["docs", "description", "Docs"],
   ];
+  // open RFQs directed to you (you're the invited taker) — show as a badge so an
+  // invited counterparty knows they have a Direct-OTC offer waiting.
+  const forMe = S.connected ? S.rfqs.filter((r) => r.taker === S.address && r.status === 0 && r.deadline * 1000 > Date.now()).length : 0;
   const items = nav.map(([k, ic, l]) => {
     const a = S.view === k;
+    const badge = k === "active" && forMe > 0 ? `<span style="margin-left:auto;font-size:9px;font-weight:700;background:#2f9b6e;color:#fff;border-radius:9px;padding:1px 7px" title="${forMe} Direct-OTC RFQ${forMe > 1 ? "s" : ""} directed to you">${forMe}</span>` : "";
     return `<button class="navbtn" data-nav="${k}" style="display:flex;align-items:center;gap:11px;background:${a ? "#1c1d24" : "transparent"};color:${a ? "#fff" : "#9094a4"};border:none;border-radius:8px;padding:9px 11px;font-size:12px;font-weight:500;cursor:pointer;text-align:left">
-      <span class="msi" style="font-size:18px;color:${a ? "#fff" : "#6a6e7e"}">${ic}</span>${l}</button>`;
+      <span class="msi" style="font-size:18px;color:${a ? "#fff" : "#6a6e7e"}">${ic}</span>${l}${badge}</button>`;
   }).join("");
   const walletBox = S.connected
     ? `<div class="side-wallet" style="background:#131318;border-radius:10px;padding:11px 12px;min-width:148px">

@@ -178,7 +178,8 @@ proof). There is no signing path — the server is read-only by construction.
   OTC → Counterparty); only that address may bid (`commit_bid` rejects everyone else
   on-chain), leaving it empty = open to anyone. The Active RFQs list labels each RFQ
   (`YOU` / `→ YOU` if you're the invited taker / `→ G…` / `reserved`) and has an
-  **All / Mine / For me** filter so an invited taker finds RFQs directed to them.
+  **All / Mine / For me** filter; the sidebar **badges the count of open RFQs directed
+  to you**, so an invited taker immediately sees they have an offer waiting.
 - **Per-identity Sybil resistance.** A nullifier `Poseidon(idSecret, rfqId)` lets
   one identity bid once per RFQ, with the KYC identity hidden via an ASP Merkle
   allow-list.

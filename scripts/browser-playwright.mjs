@@ -63,6 +63,9 @@ try {
   await page.waitForFunction(() => { const m = (document.querySelector(".wbal")?.innerText || "").match(/[\d,]+/); return m && Number(m[0].replace(/,/g, "")) > 0; }, null, { timeout: 20000 }).catch(() => {});
   const bal = (await page.evaluate(() => document.querySelector(".wbal")?.innerText || "")).match(/[\d,]+/);
   ok(!!bal && Number(bal[0].replace(/,/g, "")) > 0, `funded balance shown from chain (${bal ? bal[0] : "?"})`);
+  // sidebar badges Direct-OTC RFQs directed to the demo key (a seeded one exists live)
+  const directedBadge = await page.$('[title*="directed to you"]');
+  ok(directedBadge !== null, "sidebar shows a 'directed to you' badge (a directed RFQ exists for the demo key)");
 
   // ---- Case 4: create-RFQ form — mode/side toggles + validation ----
   console.log("[4] create form + validation");
@@ -120,7 +123,8 @@ try {
   await page.click('[data-act="rfqfilter:mine"]');
   ok(await hasText(page, /shown/, 4000), "filter 'Mine' applies (shows your RFQs)");
   await page.click('[data-act="rfqfilter:forme"]');
-  ok(await hasText(page, /shown|directed to you/, 4000), "filter 'For me' applies (RFQs directed to you)");
+  await page.waitForTimeout(300);
+  ok(!/No RFQs are directed to you/.test(await innerText(page)), "filter 'For me' shows the RFQ directed to you (non-empty)");
   await page.click('[data-act="rfqfilter:all"]');
   ok(await hasText(page, /shown/, 4000), "filter 'All' restores the full list");
 
