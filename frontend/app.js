@@ -30,7 +30,7 @@ const S = {
   view: "active", connected: false, address: null, balance: "0",
   rfqs: [], events: [], loading: true, modal: null, toast: null,
   form: { pair: "XLM / USDC", side: "SELL", mode: 1, min: "3", max: "5", deadlineMin: "60", lot: "20", taker: "" },
-  createMode: 1, health: null,
+  createMode: 1, health: null, rfqFilter: "all",
 };
 
 // ---- bid-opening store (so the maker can settle from this browser) ----
@@ -134,7 +134,10 @@ function pairSyms(pair) {
 }
 
 function viewActive() {
-  const rows = S.rfqs.map((r) => {
+  const f = S.rfqFilter || "all";
+  // "mine" = RFQs you posted; "forme" = directed to your address (you're the invited taker)
+  const filtered = S.rfqs.filter((r) => (f === "mine" ? r.maker === S.address : f === "forme" ? r.taker === S.address : true));
+  const rows = filtered.map((r) => {
     const [sT, bT] = pairSyms(r.pair);
     const s = tokOf(sT), b = tokOf(bT), st = STATUS[r.status] || STATUS[0];
     const mine = S.connected && r.maker === S.address;
@@ -163,13 +166,15 @@ function viewActive() {
       <div style="display:flex;justify-content:flex-end">${act ? `<button class="rowact" data-act="${act}" style="font-size:10.5px;font-weight:600;border:none;cursor:pointer;padding:7px 12px;border-radius:7px;background:${bg};color:${col}">${label}</button>` : `<span style="font-size:10px;color:${expired ? "#c98a2e" : "#9aa0b2"}">${exp}</span>`}</div>
     </div>`;
   }).join("");
-  const empty = `<div style="padding:40px;text-align:center;color:#aab0c0;font-size:12px">${S.loading ? "loading live RFQs from Stellar testnet…" : "No RFQs yet — create the first one."}</div>`;
+  const empty = `<div style="padding:40px;text-align:center;color:#aab0c0;font-size:12px">${S.loading ? "loading live RFQs from Stellar testnet…" : (f !== "all" && !S.connected) ? "Connect a wallet to filter your RFQs." : f === "forme" ? "No RFQs are directed to you." : f === "mine" ? "You haven't posted any RFQs yet." : "No RFQs yet — create the first one."}</div>`;
+  const chip = (key, label) => `<button data-act="rfqfilter:${key}" style="font-size:10.5px;font-weight:600;cursor:pointer;padding:6px 11px;border-radius:7px;border:1px solid ${f === key ? "#aebdf0" : "#e4e8f2"};background:${f === key ? "#eef1fb" : "#fff"};color:${f === key ? "#3a4a8a" : "#9aa0b2"}">${label}</button>`;
+  const filterBar = `<div style="display:flex;gap:6px;align-items:center">${chip("all", "All")}${chip("mine", "Mine")}${chip("forme", "For me")}<span style="font-size:11px;color:#9aa0b2;margin-left:4px">${filtered.length} shown</span></div>`;
   return `<div>
-    ${header("SIZE BANDS VISIBLE · BID AMOUNTS ENCRYPTED", "Active RFQs", `<span style="font-size:11px;color:#9aa0b2;background:#f1f3f9;border-radius:7px;padding:7px 12px;font-weight:600">${S.rfqs.length} live</span>`)}
+    ${header("SIZE BANDS VISIBLE · BID AMOUNTS ENCRYPTED", "Active RFQs", filterBar)}
     <div class="tablescroll" style="margin-top:8px">
       <div class="rfq-grid" style="display:grid;grid-template-columns:0.8fr 1.7fr 0.7fr 1fr 1.2fr 0.55fr 1fr 0.8fr;gap:10px;padding:16px 14px 9px;font-size:9.5px;letter-spacing:.5px;color:#aab0c0;border-bottom:1px solid #eef1f8">
         <span>RFQ ID</span><span>SELL → BUY</span><span>MODE</span><span>MAKER</span><span>BAND</span><span>BIDS</span><span>STATUS</span><span></span></div>
-      ${S.rfqs.length ? rows : empty}</div></div>`;
+      ${filtered.length ? rows : empty}</div></div>`;
 }
 
 function viewCreate() {
@@ -428,6 +433,7 @@ async function act(a) {
   if (cmd === "sealbid") return sealBid();
   if (cmd === "settle") return doSettle(+arg);
   if (cmd === "cancel") return doCancel(+arg);
+  if (cmd === "rfqfilter") { S.rfqFilter = arg; return render(); }
   if (cmd === "disclose") return openDisclose(+arg);
   if (cmd === "verifyopen") return openDisclose(null);
   if (cmd === "verifydisc") return doVerifyDisclosure();

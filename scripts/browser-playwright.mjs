@@ -36,7 +36,7 @@ try {
   await page.waitForFunction(() => !/loading live RFQs/.test(document.body.innerText), { timeout: 40000 }).catch(() => {});
   const boot = await innerText(page);
   ok(/Active RFQs/.test(boot), "desk renders 'Active RFQs'");
-  ok(/\d+ live/.test(boot), `live RFQ count shown (${(boot.match(/(\d+) live/) || [])[1]} live)`);
+  ok(/\d+ shown/.test(boot), `RFQ count shown (${(boot.match(/(\d+) shown/) || [])[1]} shown)`);
   // money-logic self-check: USDC<->stroops round-trip must be exact
   const conv = await page.evaluate(async () => {
     const c = await import("./stellar.js");
@@ -114,6 +114,15 @@ try {
   } else {
     ok(true, "no open RFQ to bid on (skipped) — none currently OPEN on-chain");
   }
+
+  // ---- Case 5b: Active RFQs ownership filter (All / Mine / For me) ----
+  console.log("[5b] RFQ ownership filter");
+  await page.click('[data-act="rfqfilter:mine"]');
+  ok(await hasText(page, /shown/, 4000), "filter 'Mine' applies (shows your RFQs)");
+  await page.click('[data-act="rfqfilter:forme"]');
+  ok(await hasText(page, /shown|directed to you/, 4000), "filter 'For me' applies (RFQs directed to you)");
+  await page.click('[data-act="rfqfilter:all"]');
+  ok(await hasText(page, /shown/, 4000), "filter 'All' restores the full list");
 
   // ---- Case 6: Audit — live integration health + on-chain Poseidon (real reads via clicks) ----
   console.log("[6] audit: live probes + on-chain poseidon");

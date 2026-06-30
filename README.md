@@ -177,7 +177,8 @@ proof). There is no signing path — the server is read-only by construction.
 - **Directed Direct OTC.** A maker can invite **one counterparty** (Create → Direct
   OTC → Counterparty); only that address may bid (`commit_bid` rejects everyone else
   on-chain), leaving it empty = open to anyone. The Active RFQs list labels each RFQ
-  (`YOU` / `→ YOU` if you're the invited taker / `→ G…` / `reserved`).
+  (`YOU` / `→ YOU` if you're the invited taker / `→ G…` / `reserved`) and has an
+  **All / Mine / For me** filter so an invited taker finds RFQs directed to them.
 - **Per-identity Sybil resistance.** A nullifier `Poseidon(idSecret, rfqId)` lets
   one identity bid once per RFQ, with the KYC identity hidden via an ASP Merkle
   allow-list.
