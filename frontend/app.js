@@ -489,14 +489,19 @@ async function doFaucet() {
 async function doPost() {
   if (!S.connected) return toast("Connect a wallet first", "!", "#3a2a14", "#ffe0b0");
   const f = S.form;
+  // pair must look like two asset codes, e.g. "XLM / USDC" — reject free-text
+  const pm = (f.pair || "").trim().match(/^([A-Za-z0-9]{2,6})\s*\/\s*([A-Za-z0-9]{2,6})$/);
+  if (!pm) return toast("Pair must be two asset codes, e.g. \"XLM / USDC\"", "!", "#3a2a14", "#ffe0b0");
+  const pairSym = (pm[1] + pm[2]).toUpperCase().slice(0, 9);
   if (+f.min <= 0 || +f.max <= +f.min) return toast("Max must be greater than min", "!", "#3a2a14", "#ffe0b0");
+  const taker = +f.mode === 0 ? (f.taker || "").trim() : ""; // counterparty only for Direct OTC
+  if (taker && !/^G[A-Z2-7]{55}$/.test(taker)) return toast("Counterparty must be a valid Stellar address (G…) or empty", "!", "#3a2a14", "#ffe0b0");
   const deadline = Math.floor(Date.now() / 1000) + Math.max(1, +f.deadlineMin) * 60;
   toast("Posting RFQ on-chain…", "◷");
   const lot = Math.max(0, +f.lot || 0);
-  const taker = +f.mode === 0 ? (f.taker || "").trim() : ""; // counterparty only for Direct OTC
-  const res = await chain.postRfq({ pair: f.pair.replace(/\s/g, "").replace("/", "").slice(0, 9), side: f.side, mode: f.mode, bandMin: f.min, bandMax: f.max, deadline, baseAmount: lot, taker });
+  const res = await chain.postRfq({ pair: pairSym, side: f.side, mode: f.mode, bandMin: f.min, bandMax: f.max, deadline, baseAmount: lot, taker });
   if (!res.ok) return toast(res.error, "✕", "#3a1414", "#ffd2d2");
-  logEvent("POST", "Posted RFQ", `${f.pair} · band ${f.min}–${f.max}${lot ? ` · ${lot} XLM lot` : ""}${taker ? " · directed" : ""}`, res.hash);
+  logEvent("POST", "Posted RFQ", `${pairSym} · band ${f.min}–${f.max}${lot ? ` · ${lot} XLM lot` : ""}${taker ? " · directed" : ""}`, res.hash);
   toast("RFQ posted ✓", "✓");
   S.view = "active"; await refresh();
 }

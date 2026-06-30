@@ -16,6 +16,7 @@
     "e2e": "node scripts/e2e-testnet.mjs",
     "test:tamper-onchain": "node scripts/tamper-onchain.mjs",
     "disclose": "node scripts/disclose-bid.mjs",
+    "seed:scenarios": "node scripts/seed-scenarios.mjs",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {
