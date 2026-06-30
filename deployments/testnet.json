@@ -27,7 +27,7 @@
       "publicInputs": 19,
       "proves": "all commitments bind + winner = argmax + clearingPrice = second-highest (Vickrey), all in-circuit; losing bids never output",
       "verifyResult": "true",
-      "tamperedResult": "rejected on-chain (Error(Contract, #0) / InvalidProof) when the clearing-price public input is flipped"
+      "tamperedResult": "rejected on-chain when the clearing-price public input is flipped — reproducible live in one command (npm run test:tamper-onchain / scripts/tamper-onchain.mjs): a real proof verifies on the DEPLOYED verifier (true), then the SAME proof with a tampered clearing fails the on-chain Groth16 pairing check ('pairing product did not equal identity'). Soundness checked live, not asserted"
     }
   },
   "otc": {

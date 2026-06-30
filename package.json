@@ -14,6 +14,7 @@
     "test:browser-zk": "node scripts/browser-e2e.mjs",
     "test:e2e-ui": "node scripts/browser-playwright.mjs",
     "e2e": "node scripts/e2e-testnet.mjs",
+    "test:tamper-onchain": "node scripts/tamper-onchain.mjs",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {

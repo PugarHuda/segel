@@ -12,6 +12,7 @@ a full live flow on Stellar testnet. All green as of the latest run.
 | In-browser ZK | `npm run test:browser-zk` | bidValidity (~560ms) + auctionResult proofs **generated and verified in Chrome**; Vickrey clearing = second-highest bid |
 | Live e2e | `npm run e2e` | post → 3 sealed bids → Vickrey settle, **on testnet** |
 | On-chain verify | `scripts/gen-invoke-args.mjs` + invoke | both verifiers → `true`; tampered input → `InvalidProof` |
+| On-chain soundness | `npm run test:tamper-onchain` | a REAL auctionResult proof verifies on the **live deployed verifier** → `true`; flip the clearing-price public input and the SAME proof is **rejected on-chain** (the Groth16 pairing check fails — "pairing product did not equal identity"). Soundness checked live, not asserted |
 
 ## Soundness cases (test:negative) — all correctly rejected
 

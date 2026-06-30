@@ -150,7 +150,11 @@ proof). There is no signing path — the server is read-only by construction.
 - **Real proof-of-funds.** The escrow transfer must succeed, so the bidder
   provably holds ≥ `band_max` ≥ their hidden bid; the circuit binds `bid ≤ band_max`.
 - **Real on-chain verification.** Both verifiers return `true` for valid proofs
-  and reject tampered ones on-chain (`InvalidProof`).
+  and reject tampered ones on-chain (`InvalidProof`). Reproduce it live in one
+  command — `npm run test:tamper-onchain`: a real auctionResult proof verifies on
+  the **deployed** verifier (`true`), then flipping the clearing-price public input
+  makes the **same** proof fail the on-chain pairing check (rejected). Soundness
+  checked on testnet, not asserted.
 - **Real Vickrey binding.** `settle` builds the auction public inputs from the
   **recorded** commitments (padded to N=8 with `Poseidon(0,0,0)`), so the proof is
   over exactly the on-chain sealed set — not a set the caller invented.
