@@ -104,12 +104,18 @@ lineage.)
   It's especially sharp here because the **winner's true bid is hidden on-chain**
   (Vickrey: they pay the *second* price), yet they can still disclose it bindingly to
   an auditor/counterparty. Demonstrated live against RFQ #13's settled commitments.
-- **Honest future work (a real integration, not a deadline hack):** settle the
-  winning leg through a **Confidential Token** so the *notional/size* stays private
-  while Segel keeps the *price* publicly proven. We deliberately did **not** bolt the
-  brand-new CT preview (Noir/UltraHonk, audits in progress) onto our working
-  Circom/Groth16 stack at the deadline — combining two proof systems safely is a
-  project, not a demo patch.
+- **Honest future work (real integrations, not deadline hacks):**
+  - **Confidential-Token settlement** — settle the winning leg through a CT so the
+    *notional/size* stays private while Segel keeps the *price* publicly proven. Open
+    design question we raised with the CT team: can a *desk contract* move a
+    confidential balance on a user's behalf (delegated transfer), which OTC settlement
+    needs? (see `docs/CT_FEEDBACK.md`).
+  - **Passkey smart-wallet login** — a "no seed phrase" connect option (passkey-kit +
+    a deployed wallet factory + a Launchtube/relayer submitter) for the
+    institutional-desk story. A genuine partner integration with real infra, so it
+    belongs behind the demo, not bolted onto the live connect flow at the deadline.
+  We deliberately did **not** rush either onto the working, fully-green demo —
+  combining proof systems or adding smart-wallet infra safely is a project, not a patch.
 
 ## Honest scope (what we do *not* overclaim)
 
