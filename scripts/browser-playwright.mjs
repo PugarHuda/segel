@@ -92,7 +92,11 @@ try {
   ok((await page.$eval('[data-form="pair"]', (el) => el.tagName)) === "SELECT", "PAIR is a dropdown (no free-text garbage possible)");
   const pairOpts = await page.$$eval('[data-form="pair"] option', (els) => els.map((e) => e.value).join(" · "));
   ok(/XLM \/ USDC/.test(pairOpts) && /USDC/.test(pairOpts), `PAIR dropdown offers valid pairs (${pairOpts})`);
-  await page.selectOption('[data-form="pair"]', "XLM / USDC").catch(() => {}); // ensure a valid selection for later cases
+  // the desk delivers native XLM, so a non-XLM pair must NOT offer an "XLM you deliver" lot
+  await page.selectOption('[data-form="pair"]', "ETH / USDC").catch(() => {});
+  ok((await page.$('[data-form="lot"]')) === null && /Quote-only for non-XLM/.test(await innerText(page)), "non-XLM pair hides the XLM delivery-lot field (not misleading)");
+  await page.selectOption('[data-form="pair"]', "XLM / USDC").catch(() => {}); // restore (lot field returns)
+  ok((await page.$('[data-form="lot"]')) !== null, "XLM pair restores the delivery-lot field");
 
   // ---- Case 5: bid modal opens on an open RFQ (prefer a DvP RFQ to test the delivery banner) ----
   console.log("[5] bid modal (DvP-aware)");
@@ -140,7 +144,7 @@ try {
 
   // ---- Case 5c: View a settled RFQ's settlement receipt ----
   console.log("[5c] settlement receipt (View a Filled RFQ)");
-  const viewAct = await page.evaluate(() => document.querySelector('[data-act^="view:"]')?.getAttribute("data-act") || null);
+  const viewAct = await page.evaluate(() => document.querySelector('.rowact[data-act^="view:"]')?.getAttribute("data-act") || null); // settled-row View button
   if (viewAct) {
     await page.click(`[data-act="${viewAct}"]`);
     ok(await hasText(page, /SETTLEMENT RECEIPT/, 8000), "View opens the settlement receipt (not an empty page)");

@@ -146,12 +146,15 @@ function viewActive() {
     const s = tokOf(sT), b = tokOf(bT), st = STATUS[r.status] || STATUS[0];
     const mine = S.connected && r.maker === S.address;
     const expired = r.deadline * 1000 < Date.now();
+    const iBid = S.connected && openingsFor(r.id).length > 0; // you placed a sealed bid here (this browser holds the opening)
     let label = "Bid", bg = "#eef1fb", col = "#3a4a8a", act = `bid:${r.id}`;
     if (r.status === 1) { label = "View"; bg = "#f1f3f9"; col = "#5d6273"; act = `view:${r.id}`; }
     else if (r.status === 2) { label = "—"; bg = "#f1f3f9"; col = "#c2c7d6"; act = ""; }
     else if (mine) {
-      if (expired && r.bids === 0) { label = "Cancel"; bg = "#fbeede"; col = "#b07320"; act = `cancel:${r.id}`; }
-      else { label = "Settle"; bg = "#fbeede"; col = "#b07320"; act = `settle:${r.id}`; }
+      if (r.bids === 0) {
+        if (expired) { label = "Cancel"; bg = "#fbeede"; col = "#b07320"; act = `cancel:${r.id}`; }
+        else { label = "awaiting bids"; bg = "#f1f3f9"; col = "#9aa0b2"; act = ""; } // nothing to settle yet
+      } else { label = "Settle"; bg = "#fbeede"; col = "#b07320"; act = `settle:${r.id}`; }
     }
     else if (r.taker && r.taker !== S.address) { label = "reserved"; bg = "#f1f3f9"; col = "#9aa0b2"; act = ""; } // directed to someone else
     const exp = expired ? (r.taker && r.taker !== S.address ? "reserved" : "expired") : (r.taker && r.taker !== S.address ? "reserved" : "open");
@@ -165,7 +168,7 @@ function viewActive() {
       <span style="font-size:9.5px;font-weight:600;color:${r.mode === 0 ? "#3a4a8a" : "#7a5fae"}">${r.mode === 0 ? "DIRECT" : "RFQ"}</span>
       <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#5d6273">${short(r.maker)}${mine ? `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eef1fb;color:#6c7fe0">YOU</span>` : ""}${r.taker ? (r.taker === S.address ? `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eaf5ef;color:#2f9b6e" title="this Direct-OTC RFQ is reserved for you">→ YOU</span>` : `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#f1f3f9;color:#9aa0b2" title="reserved for ${esc(r.taker)}">→ ${esc(short(r.taker))}</span>`) : ""}</div>
       <div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:#5d6273"><span class="msi" style="font-size:13px;color:#b6bdd0">lock</span>${usd(r.bandMin)}–${usd(r.bandMax)}${r.baseLot ? `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eaf5ef;color:#2f9b6e" title="delivery leg: winner receives this lot">${(+r.baseLot).toLocaleString()} XLM</span>` : ""}</div>
-      <span style="font-weight:700;font-size:13px;color:#14151a">${r.bids}</span>
+      <div style="display:flex;align-items:center;gap:5px">${r.bids > 0 ? `<button data-act="view:${r.id}" title="see the ${r.bids} sealed bid${r.bids > 1 ? "s" : ""} (amounts hidden)" style="font-weight:700;font-size:13px;color:#3a4a8a;background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;text-decoration-style:dotted">${r.bids}</button>` : `<span style="font-weight:700;font-size:13px;color:#c2c7d6">0</span>`}${iBid ? `<span title="you placed a sealed bid on this RFQ" style="font-size:11px;color:#2f9b6e;font-weight:700">✓</span>` : ""}</div>
       <span><span style="font-size:9.5px;font-weight:600;padding:3px 9px;border-radius:6px;background:${st.bg};color:${st.c}">${st.l}</span></span>
       <div style="display:flex;justify-content:flex-end">${act ? `<button class="rowact" data-act="${act}" style="font-size:10.5px;font-weight:600;border:none;cursor:pointer;padding:7px 12px;border-radius:7px;background:${bg};color:${col}">${label}</button>` : `<span style="font-size:10px;color:${expired ? "#c98a2e" : "#9aa0b2"}">${exp}</span>`}</div>
     </div>`;
@@ -210,7 +213,9 @@ function viewCreate() {
             <button data-act="side:SELL" style="flex:1;font-size:12px;font-weight:600;cursor:pointer;padding:9px;border-radius:8px;border:1px solid ${S.form.side === "SELL" ? "#e8a8c4" : "#e4e8f2"};background:${S.form.side === "SELL" ? "#fbe7ef" : "#fff"};color:${S.form.side === "SELL" ? "#b05080" : "#9aa0b2"}">Sell</button></div></div>
         ${field("MIN PRICE", "min", S.form.min)}
         ${field("MAX PRICE (= escrow)", "max", S.form.max)}
-        ${field("LOT — XLM you deliver (0 = none)", "lot", S.form.lot)}
+        ${(S.form.pair || "").trim().toUpperCase().startsWith("XLM")
+          ? field("LOT — XLM you deliver (0 = none)", "lot", S.form.lot)
+          : `<div><label style="font-size:10.5px;color:#8a8f9c;display:block;margin-bottom:6px">DELIVERY LOT</label><div style="font-size:10.5px;color:#9aa0b2;padding:10px 0;line-height:1.4">Quote-only for non-XLM pairs — this testnet build delivers native <b>XLM</b>, so a delivery lot is offered on XLM pairs.</div></div>`}
         ${field("DEADLINE (min from now)", "deadlineMin", S.form.deadlineMin)}
         ${m === 0 ? field("COUNTERPARTY (optional · empty = open to anyone)", "taker", S.form.taker, "1 / -1") : ""}
       </div>
@@ -445,6 +450,9 @@ function bind() {
   document.querySelectorAll("[data-nav]").forEach((b) => b.onclick = () => { S.view = b.dataset.nav; S.modal = null; render(); });
   document.querySelectorAll("[data-act]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); act(b.dataset.act); });
   document.querySelectorAll("[data-form]").forEach((i) => i.oninput = () => { S.form[i.dataset.form] = i.value; });
+  // the PAIR select drives conditional fields (the XLM delivery lot), so re-render on change
+  const pairSel = document.querySelector('select[data-form="pair"]');
+  if (pairSel) pairSel.onchange = () => { S.form.pair = pairSel.value; render(); };
   document.querySelectorAll("[data-stop]").forEach((d) => d.onclick = (e) => e.stopPropagation());
   // auto-probe integration health once when the Audit view is opened
   if (S.view === "audit" && S.health === null) { S.health = "loading"; doHealth(); }
@@ -527,7 +535,8 @@ async function doPost() {
   if (taker && !/^G[A-Z2-7]{55}$/.test(taker)) return toast("Counterparty must be a valid Stellar address (G…) or empty", "!", "#3a2a14", "#ffe0b0");
   const deadline = Math.floor(Date.now() / 1000) + Math.max(1, +f.deadlineMin) * 60;
   toast("Posting RFQ on-chain…", "◷");
-  const lot = Math.max(0, +f.lot || 0);
+  // the desk delivers native XLM, so a delivery lot is only meaningful on XLM pairs
+  const lot = pairSym.startsWith("XLM") ? Math.max(0, +f.lot || 0) : 0;
   const res = await chain.postRfq({ pair: pairSym, side: f.side, mode: f.mode, bandMin: f.min, bandMax: f.max, deadline, baseAmount: lot, taker });
   if (!res.ok) return toast(res.error, "✕", "#3a1414", "#ffd2d2");
   logEvent("POST", "Posted RFQ", `${pairSym} · band ${f.min}–${f.max}${lot ? ` · ${lot} XLM lot` : ""}${taker ? " · directed" : ""}`, res.hash);
