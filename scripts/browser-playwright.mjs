@@ -9,9 +9,14 @@ import { chromium } from "playwright-core";
 
 const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const PORT = 8125;
-const base = `http://localhost:${PORT}`;
-const srv = spawn(process.execPath, ["frontend/serve.mjs", String(PORT)], { stdio: "ignore" });
-await new Promise((r) => setTimeout(r, 800));
+// Point at the LIVE deployed site with LIVE_URL=https://segel.vercel.app (tests exactly
+// what judges see: the Vercel build, CDN, and /app rewrite). Default: local serve.mjs.
+const LIVE = process.env.LIVE_URL ? process.env.LIVE_URL.replace(/\/$/, "") : null;
+const base = LIVE || `http://localhost:${PORT}`;
+const appPath = LIVE ? "/app" : "/app.html"; // Vercel rewrites /app -> app.html
+const srv = LIVE ? null : spawn(process.execPath, ["frontend/serve.mjs", String(PORT)], { stdio: "ignore" });
+if (srv) await new Promise((r) => setTimeout(r, 800));
+if (LIVE) console.log("→ testing LIVE:", base);
 
 let fail = 0, n = 0;
 const ok = (c, m) => { n++; console.log(c ? "  ✓ " + m : "  ✗ " + m); if (!c) fail++; };
@@ -31,7 +36,7 @@ try {
   // domcontentloaded, not networkidle: the app pulls ESM deps from esm.sh which can
   // keep the network "busy" past the timeout (flaky); the explicit hasText wait below
   // is the real readiness signal.
-  await page.goto(base + "/app.html", { waitUntil: "domcontentloaded", timeout: 45000 });
+  await page.goto(base + appPath, { waitUntil: "domcontentloaded", timeout: 45000 });
   await hasText(page, /Active RFQs/, 45000);
   await page.waitForFunction(() => !/loading live RFQs/.test(document.body.innerText), { timeout: 40000 }).catch(() => {});
   const boot = await innerText(page);
@@ -245,7 +250,7 @@ try {
   console.log("  ✗ exception:", e.message); fail++;
 } finally {
   await browser.close();
-  srv.kill();
+  if (srv) srv.kill();
 }
 console.log(`\n${fail ? "❌ " + fail : "✅ 0"} of ${n} checks failed`);
 process.exit(fail ? 1 : 0);

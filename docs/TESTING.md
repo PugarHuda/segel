@@ -10,6 +10,7 @@ a full live flow on Stellar testnet. All green as of the latest run.
 | Circuit soundness | `npm run test:negative` | **10 / 10** bad witnesses rejected (see below) |
 | Frontend smoke | `npm run test:browser` | landing + desk render, live RFQ reads, **0 console errors** |
 | In-browser ZK | `npm run test:browser-zk` | bidValidity (~560ms) + auctionResult proofs **generated and verified in Chrome**; Vickrey clearing = second-highest bid |
+| Manual-click UI (Playwright) | `npm run test:e2e-ui` | **40 real-click checks** through every view: connect, create-form validation (incl. garbage-pair reject), bid modal + DvP banner, selective-disclosure verify, ownership filter + directed badge, live Audit probes. Point at the **deployed site** with `LIVE_URL=https://segel.vercel.app` — verified 40/40 against production. `E2E_WRITE=1` also posts + seals a real bid via clicks |
 | Live e2e | `npm run e2e` | post → 3 sealed bids → Vickrey settle, **on testnet** |
 | On-chain verify | `scripts/gen-invoke-args.mjs` + invoke | both verifiers → `true`; tampered input → `InvalidProof` |
 | On-chain soundness | `npm run test:tamper-onchain` | a REAL auctionResult proof verifies on the **live deployed verifier** → `true`; flip the clearing-price public input and the SAME proof is **rejected on-chain** (the Groth16 pairing check fails — "pairing product did not equal identity"). Soundness checked live, not asserted |
