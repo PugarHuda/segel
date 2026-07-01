@@ -119,6 +119,13 @@ export async function bidsOf(rfqId) {
   return r.value.map((b) => bytesToBig(b).toString());
 }
 
+// Public settlement receipt of a settled RFQ: { winner, clearing } (stroops) or null.
+export async function settlementOf(rfqId) {
+  const r = await simulate(OTC, "settlement", u32(rfqId));
+  if (!r.ok || !r.value) return null;
+  return { winner: r.value.winner, clearing: r.value.clearing.toString() };
+}
+
 export async function balanceOf(address) {
   const r = await simulate(USDC_SAC, "balance", addrScVal(address));
   if (!r.ok) throw new Error("balance read failed"); // let callers/health distinguish a failed read from a real 0

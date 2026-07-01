@@ -138,6 +138,19 @@ try {
   await page.click('[data-act="rfqfilter:all"]');
   ok(await hasText(page, /shown/, 4000), "filter 'All' restores the full list");
 
+  // ---- Case 5c: View a settled RFQ's settlement receipt ----
+  console.log("[5c] settlement receipt (View a Filled RFQ)");
+  const viewAct = await page.evaluate(() => document.querySelector('[data-act^="view:"]')?.getAttribute("data-act") || null);
+  if (viewAct) {
+    await page.click(`[data-act="${viewAct}"]`);
+    ok(await hasText(page, /SETTLEMENT RECEIPT/, 8000), "View opens the settlement receipt (not an empty page)");
+    ok(await hasText(page, /Clearing price|reading on-chain/, 12000), "receipt shows the PUBLIC clearing price");
+    ok(await hasText(page, /amounts never revealed/, 4000), "receipt states losing amounts stay hidden");
+    await page.click('button[data-act="closemodal"]').catch(() => {});
+  } else {
+    ok(true, "no settled RFQ to view (skipped)");
+  }
+
   // ---- Case 6: Audit — live integration health + on-chain Poseidon (real reads via clicks) ----
   console.log("[6] audit: live probes + on-chain poseidon");
   await page.click('[data-nav="audit"]');

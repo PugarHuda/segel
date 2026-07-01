@@ -369,7 +369,31 @@ function modalEl() {
   }
   if (m.type === "proving") return wrap(provingCard(m.stage));
   if (m.type === "disclose") return wrap(discloseCard(m));
+  if (m.type === "view") return wrap(viewCard(m));
   return "";
+}
+// Public settlement receipt — what everyone can see: winner, Vickrey clearing price,
+// band, delivered lot; plus the sealed commitments (bid AMOUNTS never revealed).
+function viewCard(m) {
+  const r = m.rfq, s = m.settlement, settled = r.status === 1;
+  const row = (k, v) => `<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:6px 0;border-bottom:1px solid #f4f6fb"><span style="color:#8a8f9c">${k}</span><span style="font-weight:600;color:#14151a">${v}</span></div>`;
+  const pub = m.settlement === null
+    ? `<div style="font-size:11px;color:#8a8f9c">reading on-chain…</div>`
+    : (s
+      ? row("Winner", short(s.winner) + (s.winner === S.address ? " (you)" : "")) + row("Clearing price", `${usd(s.clearing)} USDC`) + row("Band", `${usd(r.bandMin)}–${usd(r.bandMax)} USDC`) + (r.baseLot ? row("Delivered lot (DvP)", `${(+r.baseLot).toLocaleString()} XLM`) : "") + row("Side · Mode", `${esc(r.side)} · ${r.mode === 0 ? "Direct" : "Auction"}`)
+      : `<div style="font-size:11px;color:#8a8f9c">This RFQ isn't settled yet.</div>`);
+  const commits = m.commits === null
+    ? `<div style="font-size:11px;color:#8a8f9c">reading commitments…</div>`
+    : (m.commits.length
+      ? m.commits.map((c, i) => `<div style="display:flex;justify-content:space-between;align-items:center;background:#faf8fe;border:1px solid #ece2f6;border-radius:8px;padding:8px 11px;margin-bottom:6px"><span style="font-size:10px;font-family:monospace;color:#7a5fae">bid ${i + 1} · ${BigInt(c).toString(16).slice(0, 14)}…</span><span style="font-size:9.5px;color:#9aa0b2">amount hidden</span></div>`).join("")
+      : `<div style="font-size:11px;color:#8a8f9c">No bids recorded.</div>`);
+  return `<div style="width:460px;max-width:100%;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 40px 90px -30px rgba(20,21,40,.6);animation:segelPop .18s ease-out">
+    <div style="padding:16px 22px;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#2f9b6e,#7fc8a6);color:#fff"><div><div style="font-size:10px;opacity:.85;letter-spacing:1px">${settled ? "SETTLEMENT RECEIPT" : "RFQ"} · RFQ-${String(m.rfqId).padStart(3, "0")}</div><div style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:17px;margin-top:2px">${esc(r.pair)}</div></div><button data-act="closemodal" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">×</button></div>
+    <div style="padding:18px 22px;max-height:70vh;overflow:auto">
+      <div style="font-size:10.5px;letter-spacing:.5px;color:#9aa0b2;margin-bottom:6px">PUBLIC OUTCOME</div>${pub}
+      <div style="font-size:10.5px;letter-spacing:.5px;color:#9aa0b2;margin:16px 0 8px">SEALED BIDS (${m.commits ? m.commits.length : "…"}) — amounts never revealed</div>${commits}
+      <div style="margin-top:12px;font-size:10.5px;color:#5d6273;line-height:1.6;background:#eef5f0;border-radius:9px;padding:11px">The winner + clearing price are public and proven correct in zero-knowledge (Vickrey second-price). The <b>losing bid amounts</b> and every bidder's KYC identity stay hidden — proven valid without being shown.</div>
+    </div></div>`;
 }
 // Selective disclosure: the bidder proves their exact sealed bid to a chosen party
 // against the on-chain commitment (private + binding), and the counterparty can
@@ -446,7 +470,7 @@ async function act(a) {
   if (cmd === "disclose") return openDisclose(+arg);
   if (cmd === "verifyopen") return openDisclose(null);
   if (cmd === "verifydisc") return doVerifyDisclosure();
-  if (cmd === "view") { S.view = "activity"; return render(); }
+  if (cmd === "view") return openView(+arg);
   if (cmd === "dofaucet") return doFaucet();
   if (cmd === "poseidon") return doPoseidon();
   if (cmd === "health") { S.health = "loading"; render(); return doHealth(); }
@@ -517,6 +541,19 @@ function openBid(id) {
   if (!r) return;
   S.modal = { type: "bid", rfq: r, amount: ((chain.toUsdc(r.bandMin) + chain.toUsdc(r.bandMax)) / 2).toFixed(2), commit: null, proving: false };
   render();
+}
+
+// Settlement receipt for a settled RFQ: the PUBLIC outcome (winner, clearing price,
+// band, delivered lot) + the sealed commitments (amounts stay hidden).
+async function openView(rfqId) {
+  const r = S.rfqs.find((x) => x.id === rfqId);
+  if (!r) return;
+  S.modal = { type: "view", rfq: r, rfqId, settlement: null, commits: null };
+  render();
+  try {
+    const [s, commits] = await Promise.all([chain.settlementOf(rfqId), chain.bidsOf(rfqId)]);
+    if (S.modal && S.modal.type === "view" && S.modal.rfqId === rfqId) { S.modal.settlement = s; S.modal.commits = commits; render(); }
+  } catch { if (S.modal && S.modal.type === "view") { S.modal.commits = []; render(); } }
 }
 
 // Open the selective-disclosure modal for one of your sealed bids, recomputing each
