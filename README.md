@@ -185,6 +185,10 @@ proof). There is no signing path — the server is read-only by construction.
 - **Per-identity Sybil resistance.** A nullifier `Poseidon(idSecret, rfqId)` lets
   one identity bid once per RFQ, with the KYC identity hidden via an ASP Merkle
   allow-list.
+- **Inspect anything.** Click a bid count (or **View** on a filled RFQ) for the public
+  settlement receipt — winner, Vickrey clearing price, delivered lot — plus the sealed
+  bid commitments with amounts hidden. Rows you've bid on show a **✓**; the RFQ list
+  filters **All / Mine / For me** and badges Direct-OTC offers directed to you.
 - **On-chain Poseidon (proven).** `poseidon_hash(1,2)` returns
   `0x115cc0f5…4417189a`, exactly circomlibjs `poseidon([1,2])` (see the Audit tab).
 - **Live Reflector oracle (real cross-contract).** `mark_price("XLM")` invokes the
@@ -207,6 +211,14 @@ proof). There is no signing path — the server is read-only by construction.
   bidders** via distinct ZK identities (ASP slots); on mainnet these are separate
   parties and the maker collects openings off-chain at reveal.
 - **ASP allow-list** is seeded with 16 deterministic test identities (not real KYC).
+- **XLM pairs only (for now).** The delivery leg escrows the **native XLM** SAC, so a
+  delivery lot is offered on XLM pairs; BTC/ETH pairs are shown as **"soon"** and
+  disabled in the UI (adding them needs each asset's SAC + liquidity). The UI blocks
+  the mismatch rather than pretending to deliver a non-XLM asset.
+- **Settling needs the bid openings.** Whoever sealed a bid holds its opening
+  (locally); `settle` is run by a client that has the openings for the recorded set.
+  In the demo, settle a batch from the browser that placed the bids (the desk shows
+  "you bid ✓" on rows you sealed, and "awaiting bids" on your empty RFQs).
 - **Trusted setup** phase-1 is a locally-generated Powers-of-Tau (2^14) for the
   hackathon build; production wants the Hermez perpetual ceremony + multi-party phase-2.
 - **Not audited — do not use with real assets.**
