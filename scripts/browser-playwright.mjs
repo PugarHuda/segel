@@ -143,6 +143,8 @@ try {
   ok(!/No RFQs are directed to you/.test(await innerText(page)), "filter 'For me' shows the RFQ directed to you (non-empty)");
   await page.click('[data-act="rfqfilter:all"]');
   ok(await hasText(page, /shown/, 4000), "filter 'All' restores the full list");
+  // own 0-bid open RFQs read "awaiting bids" (not a bare "open" that looks clickable but isn't)
+  ok(/awaiting bids/.test(await innerText(page)), "own 0-bid open RFQ shows 'awaiting bids' (honest non-action state)");
 
   // ---- Case 5c: View a settled RFQ's settlement receipt ----
   console.log("[5c] settlement receipt (View a Filled RFQ)");

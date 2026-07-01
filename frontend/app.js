@@ -46,7 +46,7 @@ function openingsFor(rfqId) { return loadOpenings()[rfqId] || []; }
 function toast(msg, icon = "✓", bg = "#0b0b0e", color = "#fff") {
   S.toast = { msg, icon, bg, color };
   render();
-  setTimeout(() => { S.toast = null; render(); }, 3200);
+  setTimeout(() => { S.toast = null; render(); }, 4800);
 }
 function logEvent(type, title, detail, tx) {
   S.events.unshift({ type, title, detail, tx: tx ? short(tx) : "—", txHash: tx, time: "just now" });
@@ -146,15 +146,18 @@ function viewActive() {
     const s = tokOf(sT), b = tokOf(bT), st = STATUS[r.status] || STATUS[0];
     const mine = S.connected && r.maker === S.address;
     const expired = r.deadline * 1000 < Date.now();
-    const iBid = S.connected && openingsFor(r.id).length > 0; // you placed a sealed bid here (this browser holds the opening)
+    const myOpenings = openingsFor(r.id).length; // sealed bids THIS browser placed (holds the openings)
+    const iBid = S.connected && myOpenings > 0;
+    const canSettle = myOpenings >= r.bids; // settling needs the openings for every recorded bid
     let label = "Bid", bg = "#eef1fb", col = "#3a4a8a", act = `bid:${r.id}`;
     if (r.status === 1) { label = "View"; bg = "#f1f3f9"; col = "#5d6273"; act = `view:${r.id}`; }
     else if (r.status === 2) { label = "—"; bg = "#f1f3f9"; col = "#c2c7d6"; act = ""; }
     else if (mine) {
       if (r.bids === 0) {
         if (expired) { label = "Cancel"; bg = "#fbeede"; col = "#b07320"; act = `cancel:${r.id}`; }
-        else { label = "awaiting bids"; bg = "#f1f3f9"; col = "#9aa0b2"; act = ""; } // nothing to settle yet
-      } else { label = "Settle"; bg = "#fbeede"; col = "#b07320"; act = `settle:${r.id}`; }
+        else { label = "awaiting bids"; bg = "#f1f3f9"; col = "#9aa0b2"; act = ""; } // no bids yet — nothing to do
+      } else if (canSettle) { label = "Settle"; bg = "#fbeede"; col = "#b07320"; act = `settle:${r.id}`; } // you hold the openings
+      else { label = "View"; bg = "#f1f3f9"; col = "#5d6273"; act = `view:${r.id}`; } // bids sealed in another session — view them (can't settle here)
     }
     else if (r.taker && r.taker !== S.address) { label = "reserved"; bg = "#f1f3f9"; col = "#9aa0b2"; act = ""; } // directed to someone else
     const exp = expired ? (r.taker && r.taker !== S.address ? "reserved" : "expired") : (r.taker && r.taker !== S.address ? "reserved" : "open");
@@ -170,7 +173,7 @@ function viewActive() {
       <div style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:#5d6273"><span class="msi" style="font-size:13px;color:#b6bdd0">lock</span>${usd(r.bandMin)}–${usd(r.bandMax)}${r.baseLot ? `<span style="font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eaf5ef;color:#2f9b6e" title="delivery leg: winner receives this lot">${(+r.baseLot).toLocaleString()} XLM</span>` : ""}</div>
       <div style="display:flex;align-items:center;gap:5px">${r.bids > 0 ? `<button data-act="view:${r.id}" title="see the ${r.bids} sealed bid${r.bids > 1 ? "s" : ""} (amounts hidden)" style="font-weight:700;font-size:13px;color:#3a4a8a;background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;text-decoration-style:dotted">${r.bids}</button>` : `<span style="font-weight:700;font-size:13px;color:#c2c7d6">0</span>`}${iBid ? `<span title="you placed a sealed bid on this RFQ" style="font-size:11px;color:#2f9b6e;font-weight:700">✓</span>` : ""}</div>
       <span><span style="font-size:9.5px;font-weight:600;padding:3px 9px;border-radius:6px;background:${st.bg};color:${st.c}">${st.l}</span></span>
-      <div style="display:flex;justify-content:flex-end">${act ? `<button class="rowact" data-act="${act}" style="font-size:10.5px;font-weight:600;border:none;cursor:pointer;padding:7px 12px;border-radius:7px;background:${bg};color:${col}">${label}</button>` : `<span style="font-size:10px;color:${expired ? "#c98a2e" : "#9aa0b2"}">${exp}</span>`}</div>
+      <div style="display:flex;justify-content:flex-end">${act ? `<button class="rowact" data-act="${act}" style="font-size:10.5px;font-weight:600;border:none;cursor:pointer;padding:7px 12px;border-radius:7px;background:${bg};color:${col}">${label}</button>` : `<span title="${mine && r.bids === 0 && !expired ? "no bids yet — nothing to do until someone bids or it expires" : ""}" style="font-size:10px;color:${expired ? "#c98a2e" : "#9aa0b2"}">${mine && r.status === 0 && r.bids === 0 && !expired ? "awaiting bids" : exp}</span>`}</div>
     </div>`;
   }).join("");
   const empty = `<div style="padding:40px;text-align:center;color:#aab0c0;font-size:12px">${S.loading ? "loading live RFQs from Stellar testnet…" : (f !== "all" && !S.connected) ? "Connect a wallet to filter your RFQs." : f === "forme" ? "No RFQs are directed to you." : f === "mine" ? "You haven't posted any RFQs yet." : "No RFQs yet — create the first one."}</div>`;
