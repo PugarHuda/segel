@@ -19,8 +19,10 @@ try {
     const errors = [];
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
     page.on("pageerror", (e) => errors.push(String(e)));
-    await page.goto(base + path, { waitUntil: "networkidle2", timeout: 45000 });
-    await new Promise((r) => setTimeout(r, 1500));
+    // domcontentloaded + a settle delay, not networkidle2: esm.sh keeps the network
+    // busy past the timeout (flaky). The 2.5s dwell lets modules load + render() run.
+    await page.goto(base + path, { waitUntil: "domcontentloaded", timeout: 45000 });
+    await new Promise((r) => setTimeout(r, 2500));
     const title = await page.title();
     // ignore benign favicon 404s
     const real = errors.filter((e) => !/favicon|404/i.test(e));
