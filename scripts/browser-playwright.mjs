@@ -90,13 +90,15 @@ try {
   ok(await hasText(page, /Max must be greater than min/, 5000), "invalid band (max≤min) rejected with toast");
   // PAIR is a dropdown — free-text garbage is impossible by construction
   ok((await page.$eval('[data-form="pair"]', (el) => el.tagName)) === "SELECT", "PAIR is a dropdown (no free-text garbage possible)");
-  const pairOpts = await page.$$eval('[data-form="pair"] option', (els) => els.map((e) => e.value).join(" · "));
-  ok(/XLM \/ USDC/.test(pairOpts) && /USDC/.test(pairOpts), `PAIR dropdown offers valid pairs (${pairOpts})`);
-  // the desk delivers native XLM, so a non-XLM pair must NOT offer an "XLM you deliver" lot
-  await page.selectOption('[data-form="pair"]', "ETH / USDC").catch(() => {});
-  ok((await page.$('[data-form="lot"]')) === null && /Quote-only for non-XLM/.test(await innerText(page)), "non-XLM pair hides the XLM delivery-lot field (not misleading)");
-  await page.selectOption('[data-form="pair"]', "XLM / USDC").catch(() => {}); // restore (lot field returns)
-  ok((await page.$('[data-form="lot"]')) !== null, "XLM pair restores the delivery-lot field");
+  // only XLM pairs are live; non-XLM are marked "soon" and disabled (desk delivers native XLM)
+  const pairInfo = await page.$$eval('[data-form="pair"] option', (els) => ({
+    xlmEnabled: els.some((e) => /XLM \/ USDC/.test(e.value) && !e.disabled),
+    hasSoon: els.some((e) => /soon/i.test(e.textContent)),
+    allSoonDisabled: els.filter((e) => /soon/i.test(e.textContent)).every((e) => e.disabled),
+  }));
+  ok(pairInfo.xlmEnabled, "PAIR dropdown offers XLM / USDC (selectable)");
+  ok(pairInfo.hasSoon && pairInfo.allSoonDisabled, "non-XLM pairs shown as 'soon' and disabled (not selectable)");
+  ok((await page.$('[data-form="lot"]')) !== null, "XLM pair shows the delivery-lot field");
 
   // ---- Case 5: bid modal opens on an open RFQ (prefer a DvP RFQ to test the delivery banner) ----
   console.log("[5] bid modal (DvP-aware)");
