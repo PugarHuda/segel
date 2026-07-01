@@ -88,11 +88,11 @@ try {
   await page.fill('[data-form="max"]', "3000");
   await page.click('[data-act="post"]');
   ok(await hasText(page, /Max must be greater than min/, 5000), "invalid band (max≤min) rejected with toast");
-  // negative case: free-text (non "CODE / CODE") pair must be rejected
-  await page.fill('[data-form="pair"]', "fdsgwsrgfsed");
-  await page.click('[data-act="post"]');
-  ok(await hasText(page, /Pair must be/, 5000), "garbage pair rejected with toast");
-  await page.fill('[data-form="pair"]', "XLM / USDC"); // restore for later cases
+  // PAIR is a dropdown — free-text garbage is impossible by construction
+  ok((await page.$eval('[data-form="pair"]', (el) => el.tagName)) === "SELECT", "PAIR is a dropdown (no free-text garbage possible)");
+  const pairOpts = await page.$$eval('[data-form="pair"] option', (els) => els.map((e) => e.value).join(" · "));
+  ok(/XLM \/ USDC/.test(pairOpts) && /USDC/.test(pairOpts), `PAIR dropdown offers valid pairs (${pairOpts})`);
+  await page.selectOption('[data-form="pair"]', "XLM / USDC").catch(() => {}); // ensure a valid selection for later cases
 
   // ---- Case 5: bid modal opens on an open RFQ (prefer a DvP RFQ to test the delivery banner) ----
   console.log("[5] bid modal (DvP-aware)");

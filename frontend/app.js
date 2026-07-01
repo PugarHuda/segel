@@ -203,7 +203,7 @@ function viewCreate() {
     <div style="border:1px solid #edf0f7;border-radius:14px;padding:20px;max-width:560px">
       <div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:14px">${m === 0 ? "DIRECT OTC" : "RFQ AUCTION"} · DETAILS</div>
       <div class="g2" style="gap:13px">
-        ${field("PAIR", "pair", S.form.pair, "1 / -1")}
+        ${selectField("PAIR", "pair", S.form.pair, PAIRS, "1 / -1")}
         <div><label style="font-size:10.5px;color:#8a8f9c;display:block;margin-bottom:6px">SIDE</label>
           <div style="display:flex;gap:6px">
             <button data-act="side:BUY" style="flex:1;font-size:12px;font-weight:600;cursor:pointer;padding:9px;border-radius:8px;border:1px solid ${S.form.side === "BUY" ? "#aebdf0" : "#e4e8f2"};background:${S.form.side === "BUY" ? "#e6ecfb" : "#fff"};color:${S.form.side === "BUY" ? "#3a4a8a" : "#9aa0b2"}">Buy</button>
@@ -220,6 +220,11 @@ function viewCreate() {
 function field(label, key, val, span = "") {
   return `<div ${span ? `style="grid-column:${span}"` : ""}><label style="font-size:10.5px;color:#8a8f9c;display:block;margin-bottom:6px">${label}</label><input data-form="${key}" value="${esc(val)}" style="width:100%;font-size:13px;padding:9px 11px;border:1px solid #e4e8f2;border-radius:8px;background:#fff" /></div>`;
 }
+function selectField(label, key, val, opts, span = "") {
+  const options = opts.map((o) => `<option value="${esc(o)}" ${o === val ? "selected" : ""}>${esc(o)}</option>`).join("");
+  return `<div ${span ? `style="grid-column:${span}"` : ""}><label style="font-size:10.5px;color:#8a8f9c;display:block;margin-bottom:6px">${label}</label><select data-form="${key}" style="width:100%;font-size:13px;padding:9px 11px;border:1px solid #e4e8f2;border-radius:8px;background:#fff;cursor:pointer">${options}</select></div>`;
+}
+const PAIRS = ["XLM / USDC", "BTC / USDC", "ETH / USDC"];
 
 function viewActivity() {
   const evMap = { SETTLE: ["verified", "#e6f5ee", "#2f9b6e"], BID: ["lock", "#eef1fb", "#3a4a8a"], POST: ["add", "#f1f3f9", "#5d6273"], CANCEL: ["undo", "#fbeede", "#b07320"], FAUCET: ["water_drop", "#eef1fb", "#3a4a8a"] };
