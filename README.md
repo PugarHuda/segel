@@ -59,12 +59,16 @@ oracle that backstops settlement with a price circuit-breaker.
   Works with **no install** (an embedded throwaway testnet key signs) or **connect
   Freighter**.
 - **Run locally:** `npm install && npm run circuit:all && npm run serve` → http://localhost:8000.
-- **Demo video:** a ~67s **captioned** walkthrough ships at
-  [`frontend/segel-demo.mp4`](frontend/segel-demo.mp4) (also live at
-  https://segel.vercel.app/segel-demo.mp4) — on-screen captions explain each step
-  (sealing → ZK bid → settle → selective disclosure), and it seals a **real on-chain
-  bid** during capture. Regenerate with `node scripts/record-demo.mjs`. Narrated
-  script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
+- **Demo video:** a **~3-min narrated walkthrough** (natural English voice-over)
+  ships at [`frontend/segel-demo-narrated.mp4`](frontend/segel-demo-narrated.mp4)
+  (also live at https://segel.vercel.app/segel-demo-narrated.mp4) — it drives the
+  real desk end-to-end (connect → post an open/directed RFQ → on-chain Poseidon
+  audit → **seal a real on-chain bid** → selective disclosure → honest-scope note)
+  and speaks each step aloud with matching subtitles. A ~67s **silent captioned**
+  cut is also kept at [`frontend/segel-demo.mp4`](frontend/segel-demo.mp4).
+  Regenerate: `npm run demo:narrated` (VO via edge-tts + Playwright) or the silent
+  cut with `node scripts/record-demo.mjs`. Shot list / VO script:
+  [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
 
 ---
 
@@ -261,6 +265,9 @@ node scripts/e2e-testnet.mjs
 # D) Seed a rich live data set (settled auctions + open auctions w/ bids + directed +
 #    reserved, varied pairs) so the desk looks like a real market
 npm run seed:scenarios
+
+# E) Re-record the ~3-min narrated demo video (natural English VO + Playwright)
+npm run demo:narrated        # VOICE=en-US-AndrewNeural default (override via env)
 ```
 
 **On-chain** (contracts already deployed — IDs above):

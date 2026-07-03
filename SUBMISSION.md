@@ -145,6 +145,7 @@ npm run test:tamper-onchain    # tampered proof rejected by the LIVE verifier
 npm run disclose               # selective disclosure: prove a sealed bid's value vs the on-chain commitment (binding, private)
 npm run e2e                    # full DvP flow on testnet: post lot → 3 sealed bids → settle+deliver
 npm run test:e2e-ui            # Playwright: real-click journey through the desk (E2E_WRITE=1 also posts+bids on-chain)
+npm run demo:narrated          # re-render the ~3-min narrated demo video (edge-tts VO + Playwright)
 # contracts: cargo test in contracts/otc → 26/26
 ```
 

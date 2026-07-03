@@ -1,5 +1,12 @@
 # Segel — 3-minute demo script (per-shot, voice-over ready)
 
+> **Already rendered:** `npm run demo:narrated` turns these beats into
+> [`frontend/segel-demo-narrated.mp4`](../frontend/segel-demo-narrated.mp4) — a
+> ~3-min Playwright-driven capture with a natural English voice-over (edge-tts) and
+> matching subtitles. The lines below are the source of that VO; use this doc to
+> re-record by hand or to tweak `scripts/record-demo-narrated.mjs`.
+
+
 Goal: land ONE feeling — **the losing bids are mathematically gone** — and show it's
 real ZK + real money on Stellar. You don't need to be on camera; screen-record the
 desk (`/app.html`) with a **stellar.expert/explorer/testnet** tab open on the OTC
