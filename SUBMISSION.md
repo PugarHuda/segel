@@ -5,7 +5,7 @@
 
 - 🌐 **Live:** https://segel.vercel.app  (landing) · https://segel.vercel.app/app (desk)
 - 💻 **Code:** https://github.com/PugarHuda/segel  (branch `master`)
-- 🎬 **Demo:** [`frontend/segel-demo.mp4`](frontend/segel-demo.mp4) (~55s silent walkthrough; narrated script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md))
+- 🎬 **Demo:** [`frontend/segel-demo-narrated.mp4`](frontend/segel-demo-narrated.mp4) (~3-min narrated walkthrough, natural English VO; also [`frontend/segel-demo.mp4`](frontend/segel-demo.mp4) silent ~55s. Script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md))
 - ⛓️ **Network:** Stellar **testnet** (Soroban) — every claim below has an on-chain proof link.
 
 ---

@@ -17,6 +17,7 @@
     "test:tamper-onchain": "node scripts/tamper-onchain.mjs",
     "disclose": "node scripts/disclose-bid.mjs",
     "seed:scenarios": "node scripts/seed-scenarios.mjs",
+    "demo:narrated": "node scripts/record-demo-narrated.mjs",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {
