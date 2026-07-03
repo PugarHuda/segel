@@ -28,9 +28,9 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // same stable data-* selectors the silent recorder uses (text labels drift).
 const BEATS = [
   { t: "This is Segel — a confidential, sealed-bid OTC desk on Stellar. A ten-million-dollar block trade leaks the moment its bids are visible, so the market front-runs you.",
-    do: async (p, h) => { await h.scroll(720); } },
+    do: async (p, h, ms) => { await wait(1100); await h.pan(0, 0.45, ms - 1100); } },
   { t: "Segel runs that auction on-chain. Every bid is sealed, the fair clearing price is proven in zero-knowledge, and the losing bids are never revealed — not to the public, not to rival desks.",
-    do: async (p, h) => { await h.scroll(1600); await h.scroll(2400); } },
+    do: async (p, h, ms) => { await h.pan(0.45, 1, ms - 900); await h.pan(1, 0, 900); } },
   { t: "Here is the live desk. These RFQs are read straight from a Soroban contract. The size bands are public, but the bid amounts are encrypted.",
     do: async (p, h) => { await h.desk(); } },
   { t: "I'll connect — Freighter, or a no-install demo key for this walkthrough.",
@@ -39,9 +39,10 @@ const BEATS = [
   { t: "Anyone can post an RFQ. Make it a directed Direct-OTC, and only one invited address is allowed to bid — enforced on-chain, in the contract, not just in the interface.",
     do: async (p, h) => { await h.clk('[data-nav="create"]'); await wait(1200); await h.clk('[data-act="mode:0"]'); await wait(700);
       await p.evaluate(() => { const f = document.querySelector('[data-form="taker"]'); if (f) { f.scrollIntoView({ block: "center" }); f.value = "GA…the one invited counterparty"; f.style.outline = "2px solid #7585e4"; } }); } },
-  { t: "Or leave it open to everyone and escrow a delivery lot, so settlement is a real two-asset delivery-versus-payment swap.",
+  { t: "I'll post this one open to everyone, with a twenty-X-L-M delivery lot escrowed — a real two-asset delivery-versus-payment swap. And this is a real transaction: the RFQ posts on-chain now.",
     do: async (p, h) => { await h.clk('[data-act="mode:1"]'); await wait(700);
-      await p.evaluate(() => { const f = document.querySelector('[data-form="lot"]'); if (f) f.scrollIntoView({ block: "center" }); }); } },
+      await p.evaluate(() => { const f = document.querySelector('[data-form="lot"]'); if (f) f.scrollIntoView({ block: "center" }); }); await wait(900);
+      await h.post(); } },
   { t: "Don't trust the interface — check the chain. The contract computes Poseidon on-chain, bit-for-bit identical to the circuit.",
     do: async (p, h) => { await h.clk('[data-nav="audit"]'); await wait(1200); await h.clk('[data-act="poseidon"]'); await wait(2000); } },
   { t: "Every one of these bids is an amount hidden behind a Poseidon commitment.",
@@ -49,7 +50,7 @@ const BEATS = [
   { t: "When I place a bid, my browser generates a zero-knowledge proof: that the bid is in band, that I hold the funds, that I'm on the K-Y-C allow-list, and that I haven't bid before — without ever revealing the amount.",
     do: async (p, h) => { await h.bid(); await wait(1500); } },
   { t: "I seal it. The proof is made in-browser, then a real commit-bid lands on-chain recording only the commitment. The amount never leaves my device.",
-    do: async (p, h) => { await h.clk('[data-act="sealbid"]'); await wait(6500); } },
+    do: async (p, h) => { await h.seal(); } },
   { t: "At settlement, one auction proof shows the winner and the Vickrey second-highest price are correct — computed inside the circuit over exactly these sealed commitments. The winner pays, the lot is delivered, the losers are refunded. And the losing amounts are simply not there: not in storage, not in the calldata. Mathematically gone.",
     do: async (p, h) => { await wait(1500); } },
   { t: "But privacy isn't secrecy from a regulator. With selective disclosure, the winner here bid four-ninety but paid the Vickrey price of four-twenty — so four-ninety is not on the chain.",
@@ -84,6 +85,13 @@ for (let i = 0; i < BEATS.length; i++) {
   process.stdout.write(`  clip ${i} ${BEATS[i].clipDur.toFixed(1)}s\n`);
 }
 
+// ── 1b) seed one FRESH non-mine DvP RFQ so the demo key can place a REAL bid on it
+// (the UI hides "Bid" on your own RFQs; a brand-new RFQ also means a fresh nullifier).
+console.log("seeding a fresh RFQ to bid on (scripts/seed-rfq.mjs)…");
+const seed = spawnSync("node", ["scripts/seed-rfq.mjs"], { encoding: "utf8" });
+const seedId = (/RFQ #(\d+)/.exec(seed.stdout || "") || [])[1] || null;
+console.log(seedId ? `  ✅ will bid on fresh RFQ #${seedId}` : `  ⚠ seed failed (${(seed.stderr || "").trim().slice(0, 120)}); bid falls back to newest DvP`);
+
 // ── 2) drive the desk, capturing frames; each beat dwells >= its narration ──────
 const srv = spawn(process.execPath, ["frontend/serve.mjs", String(PORT)], { stdio: "ignore" });
 await wait(800);
@@ -108,19 +116,51 @@ await page.evaluateOnNewDocument(() => {
 });
 const cap = (t) => page.evaluate((x) => window.__cap && window.__cap(x), t).catch(() => {});
 const clk = (sel) => page.click(sel).catch(() => {});
+// read the current toast text (proves the on-chain writes really happened)
+const toastText = () => page.evaluate(() => (document.querySelector("[data-toast],.toast,#toast")?.textContent || document.body.innerText.match(/RFQ posted[^\n]*|Bid sealed[^\n]*|posted ✓|sealed[^\n]*✓/i)?.[0] || "")).catch(() => "");
+const waitToast = async (re, ms = 30000) => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) { const t = await toastText(); if (re.test(t)) return t; await wait(400); }
+  return "";
+};
 const helpers = {
   clk,
-  scroll: async (to, steps = 26) => { for (let i = 1; i <= steps; i++) { await page.evaluate((y) => window.scrollTo(0, y), (to * i) / steps); await wait(45); } },
+  // smooth continuous pan between two fractions of the scrollable height over ~durMs,
+  // so the landing never looks abruptly cut ("kepotong") — every section pans through.
+  pan: async (fromFrac, toFrac, durMs) => {
+    const max = await page.evaluate(() => Math.max(0, document.documentElement.scrollHeight - window.innerHeight));
+    const steps = Math.max(20, Math.round(durMs / 60));
+    const a = max * fromFrac, b = max * toFrac;
+    for (let i = 0; i <= steps; i++) { await page.evaluate((y) => window.scrollTo(0, y), a + (b - a) * i / steps); await wait(Math.max(30, durMs / steps)); }
+  },
   desk: async () => {
     await page.goto(base + "/app.html", { waitUntil: "domcontentloaded", timeout: 45000 });
     await page.waitForFunction(() => !/loading live RFQs/.test(document.body.innerText), { timeout: 40000 }).catch(() => {});
   },
-  bid: async () => page.evaluate(() => {
+  // REAL write #1: submit the Create form (default = open XLM/USDC RFQ, 20 XLM lot) → post_rfq on-chain
+  post: async () => {
+    await clk('[data-act="post"]');
+    const t = await waitToast(/posted/i, 35000);
+    console.log(t ? `   ✅ real post_rfq: "${t.trim()}"` : "   ⚠ post_rfq toast not seen (bid falls back to newest existing RFQ)");
+    await page.waitForFunction(() => /Active RFQs/i.test(document.body.innerText), { timeout: 15000 }).catch(() => {});
+    await wait(1200);
+  },
+  // bid on the seeded fresh RFQ (non-mine, 0 bids → fresh nullifier); fall back to the
+  // newest DvP with a Bid button if seeding failed.
+  bid: async () => page.evaluate((id) => {
+    const pick = id && document.querySelector(`[data-act="bid:${id}"]`);
     const btns = [...document.querySelectorAll('[data-act^="bid:"]')];
     const dvps = btns.filter((b) => b.closest(".rfq-grid")?.querySelector('[title*="delivery leg"]'));
-    const el = dvps[dvps.length - 1] || btns[btns.length - 1];
+    const el = pick || dvps[dvps.length - 1] || btns[btns.length - 1];
     if (el) { el.scrollIntoView({ block: "center" }); el.click(); return true; } return false;
-  }),
+  }, seedId),
+  // REAL write #2: prove in-browser + commit_bid on-chain; assert the success toast
+  seal: async () => {
+    await clk('[data-act="sealbid"]');
+    const t = await waitToast(/sealed|verified on-chain/i, 40000);
+    console.log(t ? `   ✅ real commit_bid: "${t.trim()}"` : "   ⚠ bid success toast not seen — check the run");
+    await wait(1200);
+  },
 };
 
 let n = 0, recording = true;
@@ -144,7 +184,7 @@ try {
     starts.push(Date.now() - tGrab);
     const t0 = Date.now();
     await cap(b.t);
-    try { await b.do(page, helpers); } catch (e) { console.error("beat warn:", e.message); }
+    try { await b.do(page, helpers, b.clipDur * 1000); } catch (e) { console.error("beat warn:", e.message); }
     const minMs = b.clipDur * 1000 + 550;           // narration + a short breath
     const spent = Date.now() - t0;
     if (spent < minMs) await wait(minMs - spent);
