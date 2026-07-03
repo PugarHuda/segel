@@ -63,11 +63,16 @@ oracle that backstops settlement with a price circuit-breaker.
   ships at [`frontend/segel-demo-narrated.mp4`](frontend/segel-demo-narrated.mp4)
   (also live at https://segel.vercel.app/segel-demo-narrated.mp4) — it drives the
   real desk end-to-end (connect → post an open/directed RFQ → on-chain Poseidon
-  audit → **seal a real on-chain bid** → selective disclosure → honest-scope note)
-  and speaks each step aloud with matching subtitles. A ~67s **silent captioned**
-  cut is also kept at [`frontend/segel-demo.mp4`](frontend/segel-demo.mp4).
-  Regenerate: `npm run demo:narrated` (VO via edge-tts + Playwright) or the silent
-  cut with `node scripts/record-demo.mjs`. Shot list / VO script:
+  audit → seal a bid → selective disclosure → honest-scope note) and speaks each
+  step aloud with matching subtitles. **The writes on camera are real on-chain
+  transactions:** the Create beat submits a real `post_rfq`, and the bid beat seals
+  a real `commit_bid` (in-browser ZK proof → verified on-chain) — each success is
+  read back from the live DOM and asserted in the run log. To keep the bid clean the
+  recorder first seeds one fresh non-mine RFQ (`scripts/seed-rfq.mjs`), since the UI
+  hides **Bid** on your own RFQs. A ~67s **silent captioned** cut is also kept at
+  [`frontend/segel-demo.mp4`](frontend/segel-demo.mp4). Regenerate:
+  `npm run demo:narrated` (VO via edge-tts + Playwright) or the silent cut with
+  `node scripts/record-demo.mjs`. Shot list / VO script:
   [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
 
 ---

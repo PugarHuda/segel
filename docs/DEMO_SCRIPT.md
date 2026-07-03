@@ -3,8 +3,12 @@
 > **Already rendered:** `npm run demo:narrated` turns these beats into
 > [`frontend/segel-demo-narrated.mp4`](../frontend/segel-demo-narrated.mp4) — a
 > ~3-min Playwright-driven capture with a natural English voice-over (edge-tts) and
-> matching subtitles. The lines below are the source of that VO; use this doc to
-> re-record by hand or to tweak `scripts/record-demo-narrated.mjs`.
+> matching subtitles. The `post_rfq` and `commit_bid` shown are **real on-chain
+> transactions** (each success toast is read back from the live DOM and asserted in
+> the run log); the recorder seeds one fresh non-mine RFQ first
+> (`scripts/seed-rfq.mjs`) so the bid has a Bid button and a fresh nullifier. The
+> lines below are the source of that VO; use this doc to re-record by hand or to
+> tweak `scripts/record-demo-narrated.mjs`.
 
 
 Goal: land ONE feeling — **the losing bids are mathematically gone** — and show it's
