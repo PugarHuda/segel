@@ -46,6 +46,14 @@ oracle that backstops settlement with a price circuit-breaker.
   anti-manipulation control — the ZK proof is the real binding on the price.)
 - **It runs on Stellar — live on testnet, every claim with a proof link:**
 
+  **Deployed contract addresses (Stellar testnet):**
+
+  ```
+  OTC desk (main):      CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM
+  bidValidity verifier: CAL5XO2NPC2ZFVQSXX7HSS6ARQOX6GL24LCR5SZVEIKENOLN2HUOK7DK
+  auctionResult verif.: CCEZVOKXYPUH67KAVVQ6ZZAPUUXSE7ENBO3OLTTLHCVKDMJHOLGGJEBY
+  ```
+
   | Contract | Role | Verified |
   |---|---|---|
   | [otc desk](https://stellar.expert/explorer/testnet/contract/CBAJVX6XPPGCMIQRWABO6ZOGQH7PJXTF4XB3MTAC35M4SBRLSIYXBBZM) | RFQ, sealed-bid commit-set, real Circle-USDC escrow, Vickrey settle, two-asset **DvP** delivery, un-griefable refunds, oracle price-guard, in-place upgradeable | DvP run (RFQ #13): [post+20 XLM lot](https://stellar.expert/explorer/testnet/tx/a16e4dae39c9595dd8dd2fcb4fdd44d30fc88eca10385d2cb7e63767706875e1) · [bid](https://stellar.expert/explorer/testnet/tx/02afe9fc9ca8b4b465ec477f3e9abddaad5a6d2ae63f34ba1555e31c9c3ec495) · [settle+deliver](https://stellar.expert/explorer/testnet/tx/95dfea5077c2ba29d5357a2e0b6fd93d3098fbbefcf5062f7ad241ed7b00c41e) live |
