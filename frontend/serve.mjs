@@ -26,6 +26,7 @@ createServer(async (req, res) => {
     let path = decodeURIComponent(new URL(req.url, "http://x").pathname);
     if (path === "/") path = "/index.html";
     if (path === "/app" || path === "/desk" || path === "/demo") path = "/app.html";
+    if (path === "/deck") path = "/deck.html";
     const file = join(ROOT, normalize(path).replace(/^(\.\.[/\\])+/, ""));
     if (!file.startsWith(ROOT)) { res.writeHead(403).end("forbidden"); return; }
     const data = await readFile(file);

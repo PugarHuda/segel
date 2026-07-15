@@ -18,6 +18,7 @@
     "disclose": "node scripts/disclose-bid.mjs",
     "seed:scenarios": "node scripts/seed-scenarios.mjs",
     "demo:narrated": "node scripts/record-demo-narrated.mjs",
+    "demo:pitch": "node scripts/record-deck.mjs",
     "serve": "node frontend/serve.mjs"
   },
   "devDependencies": {
