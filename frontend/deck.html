@@ -323,20 +323,17 @@
     </div>
   </section>
 
-  <!-- 10 — demo video (Bahasa Indonesia) -->
-  <section class="slide">
+  <!-- 10 — live interactive demo (the real desk, embedded) -->
+  <section class="slide" style="padding-top:52px;padding-bottom:52px">
     <span class="num">10 / 11</span>
-    <span class="eyebrow">Demo · Bahasa Indonesia</span>
-    <h2>Lihat mejanya bekerja.</h2>
-    <p class="lead">Panduan langsung meja Segel — sulih suara Bahasa Indonesia dengan subtitle. Memposting
-      sebuah RFQ dan menyegel penawaran, keduanya sebagai transaksi on-chain sungguhan.</p>
-    <video controls preload="metadata" playsinline poster="/segel-logo.png"
-      style="width:100%;max-width:840px;aspect-ratio:16/10;border:1px solid var(--rule);border-radius:12px;background:#000">
-      <source src="/segel-demo-id.mp4" type="video/mp4">
-      Browser Anda tidak mendukung pemutaran video — <a href="/segel-demo-id.mp4">unduh videonya</a>.
-    </video>
-    <p style="font-size:12.5px">Transaksi <code>post_rfq</code> dan <code>commit_bid</code> pada video ini adalah
-      transaksi on-chain nyata di Stellar testnet — bukan rekaman palsu.</p>
+    <span class="eyebrow">Live demo · interactive</span>
+    <h2 style="font-size:clamp(22px,3vw,36px)">The real desk, right here.</h2>
+    <p class="lead" style="font-size:14px">Not a video — this is the live Segel desk embedded in the slide.
+      Connect the demo key, post an RFQ, and seal a bid as real on-chain transactions, without leaving the deck.</p>
+    <iframe src="/app" title="Segel live desk" loading="lazy"
+      style="width:100%;max-width:1180px;flex:1 1 auto;min-height:340px;border:1px solid var(--rule);border-radius:12px;background:var(--card)"></iframe>
+    <p style="font-size:12px;margin-top:2px"><a href="/app" target="_blank" rel="noopener">Open the full desk ↗</a>
+      · <code>post_rfq</code> and <code>commit_bid</code> here are real transactions on Stellar testnet.</p>
   </section>
 
   <!-- 11 — close -->
