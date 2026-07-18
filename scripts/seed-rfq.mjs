@@ -23,9 +23,14 @@ const c = await Sdk.contract.Client.from({
   publicKey: kp.publicKey(), signTransaction: signer.signTransaction, signAuthEntry: signer.signAuthEntry,
 });
 const deadline = BigInt(Math.floor(Date.now() / 1000) + 7 * 24 * 3600); // 7 days
+// Quote band in USDC stroops (7-dec). Kept small by default so the embedded demo key —
+// which holds only ~1 Circle USDC on testnet — can actually afford to escrow a bid.
+// Override with BAND_MIN/BAND_MAX (stroops) once the demo key is topped up.
+const band_min = BigInt(process.env.BAND_MIN || 2000000); // 0.20 USDC
+const band_max = BigInt(process.env.BAND_MAX || 4000000); // 0.40 USDC
 const at = await c.post_rfq_dvp({
   maker: kp.publicKey(), pair: "XLMUSDC", side: "SELL", mode: 1,
-  band_min: 30000000n, band_max: 50000000n, deadline,
+  band_min, band_max, deadline,
   base: { token: XLM_SAC, amount: 200000000n, symbol: "XLM" }, // 20 XLM delivery lot (+ oracle symbol)
   taker: null, // open to anyone
 });

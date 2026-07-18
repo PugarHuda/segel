@@ -14,11 +14,14 @@ import puppeteer from "puppeteer-core";
 
 const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const FFMPEG = process.env.FFMPEG || "C:\\Hackathons\\Hackathon Stellar Real World ZK\\tools\\bin\\ffmpeg.exe";
-const VOICE = process.env.VOICE || "en-US-AndrewNeural"; // warm, natural US male
-const TMP = process.env.TEMP + "\\segel-narrated";
+// VO_LANG=id (or the --id flag) renders the Indonesian VO + subtitles (BEATS[i].id).
+const LANG = (process.env.VO_LANG === "id" || process.argv.includes("--id")) ? "id" : "en";
+const VOICE = process.env.VOICE || (LANG === "id" ? "id-ID-ArdiNeural" : "en-US-AndrewNeural");
+const TXT = (b) => (LANG === "id" && b.id) ? b.id : b.t; // narration + subtitle text for this run
+const TMP = process.env.TEMP + "\\segel-narrated-" + LANG;
 const FRAMES = TMP + "\\frames";
 const AUD = TMP + "\\audio";
-const OUT = "frontend/segel-demo-narrated.mp4";
+const OUT = LANG === "id" ? "frontend/segel-demo-id.mp4" : "frontend/segel-demo-narrated.mp4";
 const PORT = 8132;
 const base = `http://localhost:${PORT}`;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -28,39 +31,54 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // same stable data-* selectors the silent recorder uses (text labels drift).
 const BEATS = [
   { t: "This is Segel — a confidential, sealed-bid OTC desk on Stellar. A ten-million-dollar block trade leaks the moment its bids are visible, so the market front-runs you.",
+    id: "Ini Segel — meja OTC lelang tertutup yang rahasia di Stellar. Transaksi blok bernilai jutaan dolar langsung bocor begitu penawarannya terlihat, dan pasar pun mendahului Anda.",
     do: async (p, h, ms) => { await wait(1100); await h.pan(0, 0.45, ms - 1100); } },
   { t: "Segel runs that auction on-chain. Every bid is sealed, the fair clearing price is proven in zero-knowledge, and the losing bids are never revealed — not to the public, not to rival desks.",
+    id: "Segel menjalankan lelang itu di on-chain. Setiap penawaran disegel, harga kliring yang adil dibuktikan secara zero-knowledge, dan penawaran yang kalah tidak pernah terungkap — tidak ke publik, tidak ke meja pesaing.",
     do: async (p, h, ms) => { await h.pan(0.45, 1, ms - 900); await h.pan(1, 0, 900); } },
   { t: "Here is the live desk. These RFQs are read straight from a Soroban contract. The size bands are public, but the bid amounts are encrypted.",
+    id: "Inilah meja langsungnya. RFQ ini dibaca langsung dari kontrak Soroban. Rentang ukuran bersifat publik, tapi nilai penawarannya terenkripsi.",
     do: async (p, h) => { await h.desk(); } },
   { t: "I'll connect — Freighter, or a no-install demo key for this walkthrough.",
+    id: "Saya sambungkan dompet — Freighter, atau kunci demo tanpa instalasi untuk panduan ini.",
     do: async (p, h) => { await h.clk('[data-act="connect"]'); await wait(1100); await h.clk('[data-act="conn:demo"]');
       await p.waitForFunction(() => /USDC/.test(document.body.innerText), { timeout: 20000 }).catch(() => {}); } },
   { t: "Anyone can post an RFQ. Make it a directed Direct-OTC, and only one invited address is allowed to bid — enforced on-chain, in the contract, not just in the interface.",
+    id: "Siapa pun bisa memposting RFQ. Jadikan Direct-OTC terarah, dan hanya satu alamat yang diundang boleh menawar — dipaksakan di on-chain, di dalam kontrak, bukan sekadar di antarmuka.",
     do: async (p, h) => { await h.clk('[data-nav="create"]'); await wait(1200); await h.clk('[data-act="mode:0"]'); await wait(700);
       await p.evaluate(() => { const f = document.querySelector('[data-form="taker"]'); if (f) { f.scrollIntoView({ block: "center" }); f.value = "GA…the one invited counterparty"; f.style.outline = "2px solid #7585e4"; } }); } },
   { t: "I'll post this one open to everyone, with a twenty-X-L-M delivery lot escrowed — a real two-asset delivery-versus-payment swap. And this is a real transaction: the RFQ posts on-chain now.",
+    id: "Yang ini saya posting terbuka untuk semua, dengan jaminan pengiriman dua puluh XLM — swap dua aset delivery-versus-payment yang nyata. Dan ini transaksi sungguhan: RFQ-nya diposting on-chain sekarang.",
     do: async (p, h) => { await h.clk('[data-act="mode:1"]'); await wait(700);
       await p.evaluate(() => { const f = document.querySelector('[data-form="lot"]'); if (f) f.scrollIntoView({ block: "center" }); }); await wait(900);
       await h.post(); } },
   { t: "Don't trust the interface — check the chain. The contract computes Poseidon on-chain, bit-for-bit identical to the circuit.",
+    id: "Jangan percaya antarmuka — periksa rantainya. Kontrak menghitung Poseidon di on-chain, identik bit demi bit dengan sirkuit.",
     do: async (p, h) => { await h.clk('[data-nav="audit"]'); await wait(1200); await h.clk('[data-act="poseidon"]'); await wait(2000); } },
   { t: "Every one of these bids is an amount hidden behind a Poseidon commitment.",
+    id: "Setiap penawaran ini adalah nilai yang disembunyikan di balik komitmen Poseidon.",
     do: async (p, h) => { await h.clk('[data-nav="active"]'); await wait(1600); } },
   { t: "When I place a bid, my browser generates a zero-knowledge proof: that the bid is in band, that I hold the funds, that I'm on the K-Y-C allow-list, and that I haven't bid before — without ever revealing the amount.",
+    id: "Saat saya menawar, browser saya membuat bukti zero-knowledge: bahwa penawaran ada dalam rentang, bahwa dananya cukup, bahwa saya ada di daftar izin KYC, dan bahwa saya belum pernah menawar — tanpa pernah mengungkap nilainya.",
     do: async (p, h) => { await h.bid(); await wait(1500); } },
   { t: "I seal it. The proof is made in-browser, then a real commit-bid lands on-chain recording only the commitment. The amount never leaves my device.",
+    id: "Saya segel. Buktinya dibuat di browser, lalu commit-bid sungguhan tercatat di on-chain — hanya komitmennya yang direkam. Nilainya tak pernah meninggalkan perangkat saya.",
     do: async (p, h) => { await h.seal(); } },
   { t: "At settlement, one auction proof shows the winner and the Vickrey second-highest price are correct — computed inside the circuit over exactly these sealed commitments. The winner pays, the lot is delivered, the losers are refunded. And the losing amounts are simply not there: not in storage, not in the calldata. Mathematically gone.",
+    id: "Saat penyelesaian, satu bukti lelang menunjukkan pemenang dan harga Vickrey tertinggi kedua sudah benar — dihitung di dalam sirkuit atas komitmen tersegel ini. Pemenang membayar, jaminan dikirim, yang kalah dikembalikan. Dan nilai yang kalah memang tak ada: tidak di penyimpanan, tidak di calldata. Hilang secara matematis.",
     do: async (p, h) => { await wait(1500); } },
   { t: "But privacy isn't secrecy from a regulator. With selective disclosure, the winner here bid four-ninety but paid the Vickrey price of four-twenty — so four-ninety is not on the chain.",
+    id: "Tapi privasi bukan berarti menyembunyikan dari regulator. Dengan pengungkapan selektif, pemenang di sini menawar empat koma sembilan puluh tapi membayar harga Vickrey empat koma dua puluh — jadi empat koma sembilan puluh tidak ada di rantai.",
     do: async (p, h) => { await h.clk('[data-nav="portfolio"]'); await wait(1500); await h.clk('[data-act="verifyopen"]'); await wait(1200);
       await p.evaluate(() => { const t = document.querySelector('[data-disc="input"]'); if (t) t.value = JSON.stringify({ rfqId: 13, bidder: "GBJSZAEYQW5GQVJV77KGBPIN246HALRBWZINOQXE7DZ4NNHRVCSZMHAQ", bid: 4.90, nonce: "123456888" }); }); } },
   { t: "Yet they can prove it to an auditor, against the on-chain commitment. Verified. Change a single digit, and it fails. Private, but provable.",
+    id: "Namun mereka bisa membuktikannya ke auditor, terhadap komitmen on-chain. Terverifikasi. Ubah satu angka saja, dan gagal. Privat, tapi bisa dibuktikan.",
     do: async (p, h) => { await h.clk('[data-act="verifydisc"]'); await wait(3500); } },
   { t: "In the interest of honesty: the settler does see the openings to compute the result, like any auctioneer — Segel hides the losers from the chain and the public. And the oracle price-guard is a fat-finger check, not an anti-manipulation control. The proof is what binds the price.",
+    id: "Demi kejujuran: penyelesai memang melihat pembukaan penawaran untuk menghitung hasilnya, seperti juru lelang mana pun — Segel menyembunyikan yang kalah dari rantai dan publik. Dan penjaga harga oracle hanyalah pengaman salah-ketik, bukan kendali anti-manipulasi. Buktinyalah yang mengikat harga.",
     do: async (p, h) => { await h.clk('[data-nav="audit"]'); await wait(2500); } },
   { t: "Two Circom Groth16 circuits, verified on-chain through Stellar's BN254 host functions. Real Circle USDC escrow, a Reflector oracle read at settlement, and an MCP server so an AI agent can read the outcome. Segel: bids sealed, settlement proven, losers never seen — real zero-knowledge, real money, on Stellar.",
+    id: "Dua sirkuit Circom Groth16, diverifikasi on-chain lewat fungsi host BN254 milik Stellar. Escrow USDC Circle sungguhan, pembacaan oracle Reflector saat penyelesaian, dan server MCP agar agen AI bisa membaca hasilnya. Segel: penawaran tersegel, penyelesaian terbukti, yang kalah tak pernah terlihat — zero-knowledge nyata, uang nyata, di Stellar.",
     do: async (p, h) => { await wait(2500); } },
 ];
 
@@ -75,10 +93,10 @@ const durOf = (file) => {
   return m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : 0;
 };
 
-console.log(`synthesizing ${BEATS.length} VO clips with ${VOICE}…`);
+console.log(`synthesizing ${BEATS.length} VO clips with ${VOICE} (${LANG})…`);
 for (let i = 0; i < BEATS.length; i++) {
   const mp3 = `${AUD}\\clip${String(i).padStart(2, "0")}.mp3`;
-  const r = spawnSync("python", ["-m", "edge_tts", "--voice", VOICE, "--text", BEATS[i].t, "--write-media", mp3], { encoding: "utf8" });
+  const r = spawnSync("python", ["-m", "edge_tts", "--voice", VOICE, "--text", TXT(BEATS[i]), "--write-media", mp3], { encoding: "utf8" });
   if (r.status !== 0) { console.error("edge-tts failed:", r.stderr); process.exit(1); }
   BEATS[i].mp3 = mp3;
   BEATS[i].clipDur = durOf(mp3);
@@ -183,7 +201,7 @@ try {
   for (const b of BEATS) {
     starts.push(Date.now() - tGrab);
     const t0 = Date.now();
-    await cap(b.t);
+    await cap(TXT(b));
     try { await b.do(page, helpers, b.clipDur * 1000); } catch (e) { console.error("beat warn:", e.message); }
     const minMs = b.clipDur * 1000 + 550;           // narration + a short breath
     const spent = Date.now() - t0;

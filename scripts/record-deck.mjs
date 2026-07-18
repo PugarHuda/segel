@@ -86,10 +86,13 @@ try {
   const grabber = grab();
   const t0 = Date.now();
 
+  // The deck's slide 10 (index 9) is the embedded demo video — skip it in the narrated
+  // pitch, since the live-demo footage is spliced on right after. One beat per remaining slide.
+  const SLIDE_OF = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
   for (let i = 0; i < BEATS.length; i++) {
     starts.push(Date.now() - t0);
     const bStart = Date.now();
-    await page.evaluate((n) => window.__deckGo && window.__deckGo(n), i); // slide n
+    await page.evaluate((n) => window.__deckGo && window.__deckGo(n), SLIDE_OF[i]); // slide
     await wait(650); // let the smooth scroll land before the line starts
     await cap(BEATS[i].t);
     const minMs = BEATS[i].clipDur * 1000 + 600;
