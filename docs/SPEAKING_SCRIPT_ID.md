@@ -1,4 +1,4 @@
-# Segel — Naskah Bicara
+# Segel · Naskah Bicara
 
 Naskah yang diucapkan saat presentasi, nyambung dengan deck di
 https://segel.vercel.app/deck (11 slide). Yang di dalam tanda kutip dibaca; yang
@@ -15,7 +15,7 @@ dst.) dibiarkan English aja, jangan dipaksa diterjemahin, biar terdengar natural
 
 ---
 
-## SLIDE 1 — Judul  (0:00–0:30)
+## SLIDE 1 · Judul  (0:00-0:30)
 [Deck di slide 1.]
 
 > "Halo semua. Saya mau kenalin Segel, sebuah sealed-bid OTC desk yang jalan di Stellar.
@@ -29,7 +29,7 @@ dst.) dibiarkan English aja, jangan dipaksa diterjemahin, biar terdengar natural
 
 ---
 
-## SLIDE 2 — Masalah  (0:30–1:05)
+## SLIDE 2 · Masalah  (0:30-1:05)
 [Klik ke slide 2.]
 
 > "Kenapa ini penting? Karena OTC desk itu bocor. Misalnya ada fund yang mau beli token
@@ -47,7 +47,7 @@ dst.) dibiarkan English aja, jangan dipaksa diterjemahin, biar terdengar natural
 
 ---
 
-## SLIDE 3 — Solusi  (1:05–1:40)
+## SLIDE 3 · Solusi  (1:05-1:40)
 [Klik ke slide 3.]
 
 > "Segel itu opsi ketiganya. Bid-nya di-seal pakai Poseidon commitment, jadi nggak ada yang
@@ -63,7 +63,7 @@ dst.) dibiarkan English aja, jangan dipaksa diterjemahin, biar terdengar natural
 
 ---
 
-## SLIDE 4 — ZK yang menyangga  (1:40–2:20)
+## SLIDE 4 · ZK yang menyangga  (1:40-2:20)
 [Klik ke slide 4. Ini slide paling teknis, pelan aja.]
 
 > "Zero-knowledge di sini bukan cuma tempelan, tapi yang bikin produknya jalan. Ada dua
@@ -81,7 +81,7 @@ dst.) dibiarkan English aja, jangan dipaksa diterjemahin, biar terdengar natural
 
 ---
 
-## SLIDE 5 — Dibuktikan langsung  (2:20–2:50)
+## SLIDE 5 · Dibuktikan langsung  (2:20-2:50)
 [Klik ke slide 5.]
 
 > "Dan nggak usah percaya omongan saya. Satu command aja, proof asli lolos di verifier yang
@@ -94,7 +94,7 @@ dst.) dibiarkan English aja, jangan dipaksa diterjemahin, biar terdengar natural
 
 ---
 
-## SLIDE 6 — Cara kerja  (2:50–3:15)
+## SLIDE 6 · Cara kerja  (2:50-3:15)
 [Klik ke slide 6.]
 
 > "Alurnya empat langkah, semuanya on-chain. Maker posting request. Penawar nge-seal bid,
@@ -107,7 +107,7 @@ dst.) dibiarkan English aja, jangan dipaksa diterjemahin, biar terdengar natural
 
 ---
 
-## SLIDE 7 — Live di Stellar  (3:15–3:40)
+## SLIDE 7 · Live di Stellar  (3:15-3:40)
 [Klik ke slide 7.]
 
 > "Dan ini bukan konsep, udah ke-deploy dan jalan di Stellar testnet sekarang. Desk-nya,
@@ -121,7 +121,7 @@ dst.) dibiarkan English aja, jangan dipaksa diterjemahin, biar terdengar natural
 
 ---
 
-## SLIDE 8 — Integrasi  (3:40–4:00)
+## SLIDE 8 · Integrasi  (3:40-4:00)
 [Klik ke slide 8. Boleh agak cepat, ini daftar.]
 
 > "Dan primitif Stellar-nya kepakai beneran, bukan cuma disebut. Host function BN254,
@@ -134,7 +134,7 @@ dst.) dibiarkan English aja, jangan dipaksa diterjemahin, biar terdengar natural
 
 ---
 
-## SLIDE 9 — Batasan jujur  (4:00–4:30)
+## SLIDE 9 · Batasan jujur  (4:00-4:30)
 [Klik ke slide 9. Nada biasa aja, tenang. Ini malah nambah kredibilitas.]
 
 > "Dan batasannya kami sebut terus terang. Pihak settler emang lihat bid buat ngitung
@@ -150,7 +150,7 @@ dst.) dibiarkan English aja, jangan dipaksa diterjemahin, biar terdengar natural
 
 ---
 
-## SLIDE 10 — Demo  (4:30–5:30)
+## SLIDE 10 · Demo  (4:30-5:30)
 [Klik ke slide 10, ada video demo di sini. Putar videonya, atau buka
 https://segel.vercel.app/app di tab lain buat demo langsung. Kalau demo langsung, omongin
 sambil klik:]
@@ -170,7 +170,7 @@ sebagai narasi.]
 
 ---
 
-## SLIDE 11 — Penutup  (5:30–6:00)
+## SLIDE 11 · Penutup  (5:30-6:00)
 [Klik ke slide 11.]
 
 > "Jadi singkatnya, bid-nya di-seal, settlement-nya kebukti, yang kalah nggak pernah
