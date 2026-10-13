@@ -259,6 +259,32 @@ fn settle_rejects_clearing_below_reserve() {
     c.otc.settle(&0, &dummy_proof(&env), &w, &50);
 }
 
+#[test]
+#[should_panic(expected = "Error(Contract, #4)")] // NotExpired
+fn sealed_window_blocks_early_settle() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.otc.set_sealed_window(&true);
+    c.otc.post_rfq(&c.maker, &symbol_short!("X"), &symbol_short!("SELL"), &1, &100, &500, &1000);
+    let w = bidder(&env, &c, 1000);
+    c.otc.commit_bid(&w, &0, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
+    c.otc.settle(&0, &dummy_proof(&env), &w, &300); // before deadline 1000
+}
+
+#[test]
+fn sealed_window_allows_settle_after_deadline() {
+    let env = Env::default();
+    let c = setup(&env);
+    c.otc.set_sealed_window(&true);
+    assert!(c.otc.sealed_window());
+    c.otc.post_rfq(&c.maker, &symbol_short!("X"), &symbol_short!("SELL"), &1, &100, &500, &1000);
+    let w = bidder(&env, &c, 1000);
+    c.otc.commit_bid(&w, &0, &b32(&env, 1), &b32(&env, 11), &dummy_proof(&env));
+    env.ledger().with_mut(|li| li.timestamp = 2000);
+    c.otc.settle(&0, &dummy_proof(&env), &w, &300);
+    assert_eq!(c.otc.get_rfq_view(&0).status, ST_SETTLED);
+}
+
 // Finding-1 fix: a bidder who can't receive the refund (no/blocked trustline) does
 // NOT brick settlement — their refund is credited as claimable and pulled later.
 #[test]

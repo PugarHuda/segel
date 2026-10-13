@@ -41,7 +41,7 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
 
 ## Tested
 
-- **29/29 unit tests** (`contracts/otc/src/test.rs`): escrow lock, duplicate
+- **31/31 unit tests** (`contracts/otc/src/test.rs`): escrow lock, duplicate
   nullifier, deadline, capacity (N=8), winner payout + refunds, bad clearing,
   double-settle, no-bids, cancel-before-deadline, unknown RFQ, on-chain Poseidon,
   the `band_min` reserve (single-bid clears rejected), the claimable-refund
@@ -97,9 +97,11 @@ Research prototype for a hackathon. **Not audited. Do not use with real assets.*
   a scaling pass — an admin responsibility, not a user path.
 - **Trusted setup.** phase-1 is a local Powers-of-Tau (2^14); production needs the
   Hermez ceremony + multi-party phase-2.
-- **Early settle.** `settle` is gated on maker auth + status, *not* the deadline, so
-  a maker can settle as soon as bids land (cutting off later competition) — bidders
-  get no on-chain run-to-deadline guarantee. (The related single-bidder-clears-at-0
+- **Early settle (opt-in fix).** By default `settle` is gated on maker auth + status,
+  *not* the deadline, so a maker can settle as soon as bids land (cutting off later
+  competition). The admin switch `set_sealed_window(true)` makes `settle` reject with
+  `#4 NotExpired` until the deadline passes, a real run-to-deadline guarantee. It is
+  left **off** on the live testnet desk so the demo can settle instantly. (The related single-bidder-clears-at-0
   flaw and the refund-batching DoS are now **fixed** — see properties 7 and 9.)
 - **Circuit range checks lean on the contract (defense-in-depth).** A deep circuit
   audit confirmed both circuits are sound (winner = true argmax, clearing = exact

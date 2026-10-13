@@ -161,6 +161,7 @@ enum DataKey {
     BaseClaimable(u32, Address),   // base lot a delivery transfer couldn't push (pull via claim_base)
     PriceGuardBps,                 // admin oracle circuit-breaker tolerance; 0 = off
     Taker(u32),                    // Direct OTC invited counterparty; absent = open to anyone
+    SealedWindow,                  // admin: true = settle only after the RFQ deadline
 }
 
 #[contract]
@@ -342,6 +343,20 @@ impl Otc {
         env.storage().instance().get(&DataKey::PriceGuardBps).unwrap_or(0)
     }
 
+    /// Admin-only: enforce the full bidding window. When on, `settle` is rejected
+    /// (`NotExpired`) until the RFQ deadline has passed, so a maker can't close the
+    /// auction early and cut off later bidders. Off (default) keeps instant settle
+    /// for demos.
+    pub fn set_sealed_window(env: Env, on: bool) {
+        Self::require_admin(&env);
+        env.storage().instance().set(&DataKey::SealedWindow, &on);
+        Self::bump_instance(&env);
+        env.events().publish((symbol_short!("sealwin"),), on);
+    }
+    pub fn sealed_window(env: Env) -> bool {
+        env.storage().instance().get(&DataKey::SealedWindow).unwrap_or(false)
+    }
+
     /// Seal a bid: verify the `bidValidity` proof, record the commitment, and lock
     /// the good-faith escrow. The contract pins the proof's public inputs itself —
     /// `availBal` is pinned to `band_max` and the escrow transfer below MUST
@@ -434,6 +449,9 @@ impl Otc {
         rfq.maker.require_auth();
         if rfq.status != ST_OPEN {
             soroban_sdk::panic_with_error!(&env, OtcError::AlreadySettled);
+        }
+        if Self::sealed_window(env.clone()) && env.ledger().timestamp() <= rfq.deadline {
+            soroban_sdk::panic_with_error!(&env, OtcError::NotExpired);
         }
         let count: u32 = env.storage().persistent().get(&DataKey::BidCount(rfq_id)).unwrap_or(0);
         if count == 0 {

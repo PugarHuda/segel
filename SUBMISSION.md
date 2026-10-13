@@ -146,7 +146,7 @@ npm run disclose               # selective disclosure: prove a sealed bid's valu
 npm run e2e                    # full DvP flow on testnet: post lot → 3 sealed bids → settle+deliver
 npm run test:e2e-ui            # Playwright: real-click journey through the desk (E2E_WRITE=1 also posts+bids on-chain)
 npm run demo:narrated          # re-render the ~3-min narrated demo video (edge-tts VO + Playwright)
-# contracts: cargo test in contracts/otc → 26/26
+# contracts: cargo test in contracts/otc → 31/31
 ```
 
 ## Mapping to judging criteria (honest self-assessment)
@@ -158,7 +158,7 @@ npm run demo:narrated          # re-render the ~3-min narrated demo video (edge-
 | Stellar / ecosystem integration | 8–9/10 | real Circle USDC, DvP, Reflector consumed-in-settle, Freighter, MCP |
 | Innovation | 8/10 | confidential Vickrey OTC with hidden losing bids; AI-agent (MCP) access |
 | Real-world applicability | 8/10 | OTC block-trade confidentiality is a real institutional pain |
-| Completeness / polish | 9/10 | live site, live e2e, 26/26 tests, demo video, deep docs, MCP |
+| Completeness / polish | 9/10 | live site, live e2e, 31/31 tests, demo video, deep docs, MCP |
 
 **Overall (self): ~8.5/10.** Built solo in two weeks; everything above is live and
 reproducible.

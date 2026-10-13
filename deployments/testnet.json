@@ -35,7 +35,13 @@
     "previousContractIds": ["CCOHZKYF7GMTXQ7CWPDZ55OKNFRMQ2FA4TB5ZAHTBMOM5OKA2GRNFUHR", "CDN3B3AC6AGNQPLQ2TR654P4YOQBAUJDLQELZXEU42EXZZ6WCHMSD7Y3"],
     "wasm": "contracts/otc/",
     "constructor": ["admin", "token", "bid_verifier", "auction_verifier", "asp_root", "oracle"],
-    "functions": ["post_rfq", "post_rfq_dvp", "commit_bid", "settle", "cancel_expired", "claim", "claimable", "claim_base", "base_claimable", "set_verifiers", "set_admin", "set_oracle", "set_token", "set_price_guard", "price_guard", "upgrade", "mark_price", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "base_leg", "taker", "balance", "admin", "verifiers", "oracle", "token_address"],
+    "functions": ["post_rfq", "post_rfq_dvp", "commit_bid", "settle", "cancel_expired", "claim", "claimable", "claim_base", "base_claimable", "set_verifiers", "set_admin", "set_oracle", "set_token", "set_price_guard", "price_guard", "set_sealed_window", "sealed_window", "upgrade", "mark_price", "poseidon_hash", "rfq_count", "get_rfq_view", "bid_count", "bids", "is_nullifier_used", "settlement", "base_leg", "taker", "balance", "admin", "verifiers", "oracle", "token_address"],
+    "sealedWindowUpgrade": {
+      "note": "Opt-in run-to-deadline guarantee: admin set_sealed_window(bool); when true, settle rejects with #4 NotExpired until the RFQ deadline has passed, so a maker can't close early and cut off later bidders. Default false (live desk keeps instant settle for demos). sealed_window() view. Additive storage, backward-compatible.",
+      "wasmHash": "544a59bd8ae2ca1d4a5d0aab315bf9709ae5c87a4fc17b46600c1071a69f461a",
+      "uploadTx": "https://stellar.expert/explorer/testnet/tx/b7a122e77384a6a57f290982443b2fe1f246b6127aebf5dc3112b34318f4e84e",
+      "upgradeTx": "https://stellar.expert/explorer/testnet/tx/70c14af3c5e47979d724ec66ad987039c53fc45e73e386ffb27e1f3e168f438a"
+    },
     "directedRfqUpgrade": {
       "note": "Direct OTC can now target ONE counterparty: post_rfq_dvp takes an optional `taker` (Some(address) = only that address may bid, enforced in commit_bid with Error #15 NotInvitedTaker; None = open to anyone). New `taker(rfq_id)` view. To stay within Soroban's 10-argument-per-function cap, the DvP lot's 3 params were bundled into one `BaseSpec {token, amount, symbol}` struct (an earlier 11-arg version made the contract spec unparseable by the JS SDK — caught + fixed). Backward-compatible (additive Taker key; existing RFQs read taker()=None). Verified live: directed RFQ #22, taker() round-trips, a non-invited commit_bid rejected #15.",
       "wasmHash": "eef33bdfaccdc8851f45bb08d84e62070e8adcba6e4aed5e737ce4072af99a90",
@@ -92,7 +98,7 @@
       "dvp": "post_rfq_dvp escrows the maker's sell-side lot at post (must be a DIFFERENT asset than the quote token, enforced — else lot and escrow would commingle); settle delivers it to the winner atomically against the USDC payment; cancel_expired returns it to the maker. Delivery is NON-reverting: a winner who can't receive is credited a base-claimable (claim_base()) so settle never bricks. clearing is the TOTAL quote for the whole lot (per-lot pricing, not per-unit). Delivery/refund clears the leg key (no double-delivery; base_leg() reads null after)",
       "oracleGuard": "when armed (set_price_guard bps>0), settle additionally requires the clearing total to sit within ±bps of mark_price(base)*base_amount — the Reflector oracle is consumed in the money path, not merely advisory. Fail-OPEN (skips, never bricks) when off / no base symbol / no feed / non-positive price / overflowing product; cancel_expired bypasses it. Honest scope: a fat-finger net, NOT anti-manipulation (the maker controls the band + symbol); the auctionResult proof is the real clearing binding",
       "directedOtc": "post_rfq_dvp's optional `taker` invites one counterparty; commit_bid rejects anyone else (#15 NotInvitedTaker). `taker(rfq_id)` view; absent = open to anyone. Lets Direct OTC be a real bilateral trade, not just a label",
-      "unitTests": "29/29 passing (contracts/otc/src/test.rs); DvP + base≠quote guard + base-claimable fallback + oracle price-guard (allow + reject) + directed-OTC (invited bids / outsider rejected / open accepts anyone) all covered"
+      "unitTests": "31/31 passing (contracts/otc/src/test.rs); DvP + base≠quote guard + base-claimable fallback + oracle price-guard (allow + reject) + directed-OTC (invited bids / outsider rejected / open accepts anyone) + sealed window (early settle blocked / post-deadline settle allowed) all covered"
     }
   },
   "e2eLive": {
