@@ -66,6 +66,12 @@ oracle that backstops settlement with a price circuit-breaker.
   browser** (snarkjs/WASM), and submits real `commit_bid` / `settle` transactions.
   Works with **no install** (an embedded throwaway testnet key signs) or **connect
   Freighter**.
+- **▶ Fastest way to try it: "Run a guided trade"** (welcome card or sidebar). One
+  click runs a full private auction on testnet: a seller lists XLM for 3–5 USDC,
+  three buyers seal offers (4.90 / 4.20 / 3.80) with in-browser ZK proofs, and the
+  contract settles at the second price, 4.20. Each step is explained in plain words
+  with an explorer link. It ends on what the chain shows vs what only the buyers
+  knew. ~1 minute, no wallet needed.
 - **Run locally:** `npm install && npm run circuit:all && npm run serve` → http://localhost:8000.
 - **Demo video:** a **~3-min narrated walkthrough** (natural English voice-over)
   ships at [`frontend/segel-demo-narrated.mp4`](frontend/segel-demo-narrated.mp4)
