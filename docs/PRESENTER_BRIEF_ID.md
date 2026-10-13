@@ -253,6 +253,12 @@ ditolak on-chain.
 A: Mendorong orang menawar jujur sesuai nilai sebenarnya, dan membuat lelang efisien.
 Bonusnya: nilai asli pemenang pun tak muncul di rantai.
 
+**Q: Maker bisa settle lebih awal dan memotong penawar yang datang belakangan?**
+A: Secara default bisa — sengaja, supaya demo bisa settle instan. Tapi kontrak sudah punya
+saklar admin `set_sealed_window(true)`: kalau aktif, `settle` ditolak on-chain (`#4
+NotExpired`) sampai deadline lewat. Jadi jaminan "lelang jalan sampai habis waktu" sudah
+ada, tinggal dinyalakan untuk produksi.
+
 **Q: Apakah ini jalan di mainnet?**
 A: Sekarang di testnet, semua reproducible. Untuk mainnet perlu trusted-setup multi-pihak
 dan integrasi KYC nyata — kami sudah petakan.
