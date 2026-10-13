@@ -206,7 +206,7 @@ function welcomeCard() {
       ${pt("emoji_events", "3. Best offer wins", "Winner pays the 2nd-best price. Losers stay secret.")}
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button data-act="tour" style="font-size:13px;font-weight:600;cursor:pointer;padding:11px 18px;border-radius:10px;border:none;background:#0b0b0e;color:#fff;display:inline-flex;align-items:center;gap:8px"><span class="msi" style="font-size:19px;color:#4cae8a">play_circle</span>Run a guided trade (about 1 min)</button>
+      <button data-act="tour" style="font-size:13px;font-weight:600;cursor:pointer;padding:11px 18px;border-radius:10px;border:none;background:#0b0b0e;color:#fff;display:inline-flex;align-items:center;gap:8px"><span class="msi" style="font-size:19px;color:#4cae8a">play_circle</span>Run a guided trade (1–2 min)</button>
       <span style="font-size:11px;color:#9aa0b2">Real Stellar testnet. No wallet or install needed, no real money.</span>
     </div></div>`;
 }
