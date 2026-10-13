@@ -32,7 +32,7 @@ const at = await c.post_rfq_dvp({
   maker: kp.publicKey(), pair: "XLMUSDC", side: "SELL", mode: 1,
   band_min, band_max, deadline,
   base: { token: XLM_SAC, amount: 200000000n, symbol: "XLM" }, // 20 XLM delivery lot (+ oracle symbol)
-  taker: null, // open to anyone
+  taker: process.env.TAKER || null, // TAKER=G… makes it a directed Direct-OTC; default open
 });
 const res = await at.signAndSend();
 console.log(`posted RFQ #${at.result} -> https://stellar.expert/explorer/testnet/tx/${res.sendTransactionResponse?.hash}`);

@@ -227,7 +227,7 @@ try {
       const sel = '[title*="delivery leg"]'; // the DvP lot chip's unique title = a DvP RFQ
       const btns = [...document.querySelectorAll('[data-act^="bid:"]')];
       const dvps = btns.filter((b) => b.closest(".rfq-grid")?.querySelector(sel));
-      const el = dvps[dvps.length - 1] || btns[btns.length - 1]; // newest DvP = freshest nullifier
+      const el = dvps[0] || btns[0]; // table is newest-first: newest DvP = freshest nullifier
       return el?.getAttribute("data-act") || null;
     });
     if (dvpBid) {

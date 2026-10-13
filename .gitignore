@@ -31,3 +31,4 @@ tools/bin/
 .vercel
 
 .vercel/
+.playwright-mcp/

@@ -30,7 +30,8 @@ const S = {
   view: "active", connected: false, address: null, balance: "0",
   rfqs: [], events: [], loading: true, modal: null, toast: null,
   form: { pair: "XLM / USDC", side: "SELL", mode: 1, min: "3", max: "5", deadlineMin: "60", lot: "20", taker: "" },
-  createMode: 1, health: null, rfqFilter: "all",
+  createMode: 1, health: null, rfqFilter: "open",
+  welcome: (() => { try { return localStorage.getItem("segel.welcome") !== "off"; } catch { return true; } })(),
 };
 
 // ---- bid-opening store (so the maker can settle from this browser) ----
@@ -105,6 +106,7 @@ function sidebar() {
       <span style="width:7px;height:7px;border-radius:50%;background:#4cae8a;flex-shrink:0"></span>
       <span style="font-size:9.5px;color:#8a8e9e;letter-spacing:.5px">soroban · testnet RPC</span></div>
     <button data-nav="create" class="side-newbtn" style="display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff;border:none;border-radius:9px;padding:11px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:16px"><span class="msi" style="font-size:17px">add</span>New RFQ</button>
+    <button data-act="tour" class="side-newbtn" style="display:flex;align-items:center;justify-content:center;gap:7px;background:#1c1d24;color:#fff;border:1px solid #2c2d36;border-radius:9px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;margin:-8px 0 16px"><span class="msi" style="font-size:17px;color:#4cae8a">play_circle</span>Guided trade</button>
     <div class="side-nav">${items}</div>
     ${walletBox}
   </div>`;
@@ -140,7 +142,9 @@ function pairSyms(pair) {
 function viewActive() {
   const f = S.rfqFilter || "all";
   // "mine" = RFQs you posted; "forme" = directed to your address (you're the invited taker)
-  const filtered = S.rfqs.filter((r) => (f === "mine" ? r.maker === S.address : f === "forme" ? r.taker === S.address : true));
+  const isOpen = (r) => r.status === 0 && r.deadline * 1000 > Date.now();
+  const filtered = S.rfqs.filter((r) => (f === "open" ? isOpen(r) : f === "mine" ? r.maker === S.address : f === "forme" ? r.taker === S.address : true))
+    .slice().sort((a, b) => b.id - a.id); // newest first
   const rows = filtered.map((r) => {
     const [sT, bT] = pairSyms(r.pair);
     const s = tokOf(sT), b = tokOf(bT), st = STATUS[r.status] || STATUS[0];
@@ -176,15 +180,35 @@ function viewActive() {
       <div style="display:flex;justify-content:flex-end">${act ? `<button class="rowact" data-act="${act}" style="font-size:10.5px;font-weight:600;border:none;cursor:pointer;padding:7px 12px;border-radius:7px;background:${bg};color:${col}">${label}</button>` : `<span title="${mine && r.bids === 0 && !expired ? "no bids yet — nothing to do until someone bids or it expires" : ""}" style="font-size:10px;color:${expired ? "#c98a2e" : "#9aa0b2"}">${mine && r.status === 0 && r.bids === 0 && !expired ? "awaiting bids" : exp}</span>`}</div>
     </div>`;
   }).join("");
-  const empty = `<div style="padding:40px;text-align:center;color:#aab0c0;font-size:12px">${S.loading ? "loading live RFQs from Stellar testnet…" : (f !== "all" && !S.connected) ? "Connect a wallet to filter your RFQs." : f === "forme" ? "No RFQs are directed to you." : f === "mine" ? "You haven't posted any RFQs yet." : "No RFQs yet — create the first one."}</div>`;
+  const empty = `<div style="padding:40px;text-align:center;color:#aab0c0;font-size:12px">${S.loading ? "loading live RFQs from Stellar testnet…" : (f === "mine" || f === "forme") && !S.connected ? "Connect a wallet to filter your RFQs." : f === "open" ? `No open RFQs right now. <button data-act="tour" style="font:inherit;color:#6c7fe0;background:none;border:none;cursor:pointer;text-decoration:underline">Run a guided trade</button> or switch to All.` : f === "forme" ? "No RFQs are directed to you." : f === "mine" ? "You haven't posted any RFQs yet." : "No RFQs yet — create the first one."}</div>`;
   const chip = (key, label) => `<button data-act="rfqfilter:${key}" style="font-size:10.5px;font-weight:600;cursor:pointer;padding:6px 11px;border-radius:7px;border:1px solid ${f === key ? "#aebdf0" : "#e4e8f2"};background:${f === key ? "#eef1fb" : "#fff"};color:${f === key ? "#3a4a8a" : "#9aa0b2"}">${label}</button>`;
-  const filterBar = `<div style="display:flex;gap:6px;align-items:center">${chip("all", "All")}${chip("mine", "Mine")}${chip("forme", "For me")}<span style="font-size:11px;color:#9aa0b2;margin-left:4px">${filtered.length} shown</span></div>`;
+  const filterBar = `<div style="display:flex;gap:6px;align-items:center">${chip("open", "Open")}${chip("all", "All")}${chip("mine", "Mine")}${chip("forme", "For me")}<span style="font-size:11px;color:#9aa0b2;margin-left:4px">${filtered.length} shown</span></div>`;
   return `<div>
+    ${S.welcome ? welcomeCard() : ""}
     ${header("SIZE BANDS VISIBLE · BID AMOUNTS ENCRYPTED", "Active RFQs", filterBar)}
     <div class="tablescroll" style="margin-top:8px">
       <div class="rfq-grid" style="display:grid;grid-template-columns:0.8fr 1.7fr 0.7fr 1fr 1.2fr 0.55fr 1fr 0.8fr;gap:10px;padding:16px 14px 9px;font-size:9.5px;letter-spacing:.5px;color:#aab0c0;border-bottom:1px solid #eef1f8">
         <span>RFQ ID</span><span>SELL → BUY</span><span>MODE</span><span>MAKER</span><span>BAND</span><span>BIDS</span><span>STATUS</span><span></span></div>
       ${filtered.length ? rows : empty}</div></div>`;
+}
+
+// First-run welcome: what this is in plain words + the one-click guided trade.
+function welcomeCard() {
+  const pt = (ic, t, b) => `<div style="flex:1;min-width:180px;display:flex;gap:9px"><span class="msi" style="font-size:20px;color:#6c7fe0;flex-shrink:0">${ic}</span><div><div style="font-size:12px;font-weight:600">${t}</div><div style="font-size:11px;color:#5d6273;line-height:1.5;margin-top:2px">${b}</div></div></div>`;
+  return `<div style="background:#f4f6ff;border:1px solid #dfe4fa;border-radius:16px;padding:18px 20px;margin-bottom:22px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:18px">New here? Watch a private auction, start to finish</div>
+      <div style="font-size:11.5px;color:#6a7088;margin-top:4px;max-width:640px;line-height:1.55">Segel lets a seller collect offers that nobody else can read. The best offer wins, and the losing offers are never revealed, not even on the blockchain.</div></div>
+      <button data-act="welcomeoff" title="Hide" style="background:none;border:none;color:#9aa0b2;cursor:pointer;font-size:12px;white-space:nowrap">Hide ✕</button></div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 16px">
+      ${pt("sell", "1. A seller asks", "Lists XLM for sale with a public price range.")}
+      ${pt("lock", "2. Buyers seal offers", "Each offer is hidden behind a zero-knowledge proof.")}
+      ${pt("emoji_events", "3. Best offer wins", "Winner pays the 2nd-best price. Losers stay secret.")}
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button data-act="tour" style="font-size:13px;font-weight:600;cursor:pointer;padding:11px 18px;border-radius:10px;border:none;background:#0b0b0e;color:#fff;display:inline-flex;align-items:center;gap:8px"><span class="msi" style="font-size:19px;color:#4cae8a">play_circle</span>Run a guided trade (about 1 min)</button>
+      <span style="font-size:11px;color:#9aa0b2">Real Stellar testnet. No wallet or install needed, no real money.</span>
+    </div></div>`;
 }
 
 function viewCreate() {
@@ -299,7 +323,7 @@ function viewAudit() {
         <div id="poseidon-out" style="font-size:10px;color:#2f7d5e;margin-top:10px;word-break:break-all"></div></div>
       <div style="border:1px solid #edf0f7;border-radius:13px;padding:18px;background:#fbfcff">
         <div style="font-size:11px;letter-spacing:1px;color:#9aa0b2;margin-bottom:13px">SELF-AUDIT · contract tests</div>
-        <div style="display:flex;gap:10px;margin-bottom:13px"><div style="flex:1;text-align:center;background:#e6f5ee;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#2f9b6e">26</div><div style="font-size:9.5px;color:#5d8c75">unit tests</div></div><div style="flex:1;text-align:center;background:#eef1fb;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#3a4a8a">2</div><div style="font-size:9.5px;color:#6a72a0">circuits</div></div><div style="flex:1;text-align:center;background:#fbf3df;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#b08a2e">1</div><div style="font-size:9.5px;color:#9a7a3a">tamper test</div></div></div>
+        <div style="display:flex;gap:10px;margin-bottom:13px"><div style="flex:1;text-align:center;background:#e6f5ee;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#2f9b6e">31</div><div style="font-size:9.5px;color:#5d8c75">unit tests</div></div><div style="flex:1;text-align:center;background:#eef1fb;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#3a4a8a">2</div><div style="font-size:9.5px;color:#6a72a0">circuits</div></div><div style="flex:1;text-align:center;background:#fbf3df;border-radius:9px;padding:11px"><div style="font-family:'Pixelify Sans',monospace;font-weight:700;font-size:22px;color:#b08a2e">1</div><div style="font-size:9.5px;color:#9a7a3a">tamper test</div></div></div>
         <div style="font-size:10.5px;color:#5d6273;line-height:1.6">Binding: the contract builds every verifier public-input vector itself. Tampering the clearing price → rejected on-chain (InvalidProof).</div></div>
       <div style="border:1px solid #edf0f7;border-radius:13px;padding:18px;background:#0b0b0e;grid-column:1 / -1">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div style="font-size:11px;letter-spacing:1px;color:#7e8294">MCP SERVER · Stellar-native, read-only</div><span style="font-size:10px;color:#4cae8a;display:inline-flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#4cae8a"></span>live · reads on-chain</span></div>
@@ -380,6 +404,7 @@ function modalEl() {
       </div></div>`);
   }
   if (m.type === "proving") return wrap(provingCard(m.stage));
+  if (m.type === "tour") return wrap(tourCard(m));
   if (m.type === "disclose") return wrap(discloseCard(m));
   if (m.type === "view") return wrap(viewCard(m));
   return "";
@@ -452,6 +477,79 @@ function wrap(inner) {
   return `<div data-act="closemodal" style="position:fixed;inset:0;background:rgba(20,21,30,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:90;padding:20px"><div data-stop="1">${inner}</div></div>`;
 }
 
+// Guided trade: one click runs the real flow on testnet (post → 3 sealed bids →
+// Vickrey settle), narrating each step in plain language, then contrasts what the
+// chain shows with what only the bidders knew. No mocks: same calls as the buttons.
+const TOUR_BIDS = [["Buyer A", "4.90"], ["Buyer B", "4.20"], ["Buyer C", "3.80"]];
+function tourCard(m) {
+  const icon = { wait: ["radio_button_unchecked", "#c2c7d6"], run: ["progress_activity", "#6c7fe0"], done: ["check_circle", "#2f9b6e"], fail: ["error", "#b04a4a"] };
+  const steps = m.steps.map((st) => {
+    const [ic, c] = icon[st.status];
+    return `<div style="display:flex;gap:11px;padding:10px 0;border-bottom:1px solid #f4f6fb;opacity:${st.status === "wait" ? ".55" : "1"}">
+      <span class="msi" style="font-size:20px;color:${c};flex-shrink:0;${st.status === "run" ? "animation:segelProve 1s linear infinite" : ""}">${ic}</span>
+      <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">${st.title}</div>
+        <div style="font-size:11px;color:#5d6273;line-height:1.55;margin-top:2px">${st.plain}</div>
+        ${st.status === "run" && st.stage ? `<div style="font-size:10.5px;color:#6c7fe0;margin-top:4px">${esc(st.stage)}</div>` : ""}
+        ${st.status === "fail" ? `<div style="font-size:10.5px;color:#b04a4a;margin-top:4px">${esc(st.error || "failed")}</div>` : ""}
+        ${st.tx ? `<a href="${chain.txExplorer(st.tx)}" target="_blank" style="font-size:10px;text-decoration:none">see it on the Stellar explorer ↗</a>` : ""}</div></div>`;
+  }).join("");
+  const reveal = m.result ? `<div class="g2" style="gap:10px;margin-top:14px">
+      <div style="background:#eef1fb;border-radius:11px;padding:13px"><div style="font-size:10.5px;font-weight:600;color:#3a4a8a;margin-bottom:7px">WHAT EVERYONE SEES ON-CHAIN</div>
+        <div style="font-size:11px;color:#4a5280;line-height:1.7">Winner: ${short(m.result.winner)}<br>Price paid: <b>${usd(m.result.clearing)} USDC</b><br>3 sealed bids: <span style="font-family:monospace">•••• •••• ••••</span></div></div>
+      <div style="background:#0b0b0e;border-radius:11px;padding:13px"><div style="font-size:10.5px;font-weight:600;color:#c2c7d6;margin-bottom:7px">WHAT ONLY THE BUYERS KNEW</div>
+        <div style="font-size:11px;color:#8a8e9e;line-height:1.7">${TOUR_BIDS.map(([n, v]) => `${n}: <b style="color:#fff">${v}</b>`).join("<br>")}<br><span style="color:#4cae8a">never published, still proven correct</span></div></div></div>
+    <div style="font-size:11px;color:#5d6273;line-height:1.6;margin-top:11px">Buyer A bid the most, so A wins. A pays Buyer B's price (4.20), not their own 4.90. That's a second-price auction, which rewards honest bidding. Nobody can see 4.90 or 3.80, yet a zero-knowledge proof convinced the contract the result is right.</div>
+    <div style="font-size:10.5px;color:#8a6e2e;background:#fbf3df;border-radius:9px;padding:9px 11px;margin-top:10px;line-height:1.5">Demo note: to run without wallets, one testnet key plays the seller and all three buyers, each with its own zero-knowledge identity. That's why the winner address matches the seller. In real use they are separate wallets.</div>` : "";
+  const foot = m.running ? `<div style="font-size:10.5px;color:#9aa0b2;text-align:center;margin-top:12px">Proofs are built in this browser. Keep the tab open.</div>`
+    : `<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">${m.result ? `<button data-act="view:${m.rfqId}" style="flex:1;font-size:12px;font-weight:600;cursor:pointer;padding:10px;border-radius:9px;border:none;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff">Open the on-chain receipt</button>` : `<button data-act="tour" style="flex:1;font-size:12px;font-weight:600;cursor:pointer;padding:10px;border-radius:9px;border:none;background:linear-gradient(135deg,#7585e4,#b3a6dd);color:#fff">Try again</button>`}<button data-act="navcreate" style="flex:1;font-size:12px;font-weight:600;cursor:pointer;padding:10px;border-radius:9px;border:1px solid #e4e8f2;background:#fff;color:#3a4a8a">Post my own RFQ</button></div>`;
+  return `<div style="width:500px;max-width:100%;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 40px 90px -30px rgba(20,21,40,.6);animation:segelPop .18s ease-out">
+    <div style="padding:16px 22px;display:flex;justify-content:space-between;align-items:center;background:#0b0b0e;color:#fff"><div><div style="font-size:10px;opacity:.7;letter-spacing:1px">GUIDED TRADE · LIVE ON STELLAR TESTNET</div><div style="font-family:'Pixelify Sans',monospace;font-weight:600;font-size:18px;margin-top:2px">${m.result ? "Done. Here's what stayed private" : "A private auction, step by step"}</div></div>${m.running ? "" : `<button data-act="closemodal" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px">×</button>`}</div>
+    <div style="padding:8px 22px 18px;max-height:76vh;overflow:auto">${steps}${reveal}${foot}</div></div>`;
+}
+
+async function runTour() {
+  if (S.modal && S.modal.running) return;
+  if (!S.connected) { S.connected = true; S.address = chain.DEMO_ADDRESS; chain.setWalletSigner(null); refreshBalance(); }
+  // Size the XLM lot to ~4 USDC at the live Reflector mark, so the settle-time oracle
+  // guard (±50% of mark × lot) accepts the 4.20 clearing. No mark → quote-only.
+  let lot = 0;
+  try { const mark = await chain.markPrice("XLM"); if (mark > 0) lot = Math.min(500, Math.max(1, Math.round(4 / mark))); } catch {}
+  const m = S.modal = {
+    type: "tour", running: true, result: null, rfqId: null,
+    steps: [
+      { title: "1 · A seller asks for offers", plain: `The seller puts ${lot ? `<b>${lot} XLM</b>` : "a lot"} up for sale and asks for offers between <b>3 and 5 USDC</b>. Only this range is public. The XLM is locked in the contract until the auction ends.` },
+      ...TOUR_BIDS.map(([n, v], i) => ({ title: `${i + 2} · ${n} sends a sealed offer`, plain: `${n} offers <b>${v} USDC</b>. Their browser builds a zero-knowledge proof that the offer is inside the range and backed by locked funds. Only a scrambled fingerprint of the number goes on-chain.` })),
+      { title: "5 · The auction settles", plain: "One more proof works out the winner and the price over the sealed offers, without opening them. The contract checks the proof, pays the seller, delivers the XLM, and refunds everyone else." },
+    ].map((st) => ({ ...st, status: "wait" })),
+  };
+  const live = () => { if (S.modal === m) render(); };
+  live();
+  const run = async (i, fn) => {
+    const st = m.steps[i]; st.status = "run"; live();
+    const res = await fn((stage) => { st.stage = stage; live(); });
+    if (!res.ok) throw Object.assign(new Error(res.error), { step: i });
+    st.status = "done"; st.tx = res.hash; live();
+    return res;
+  };
+  try {
+    const post = await run(0, async (stage) => {
+      stage("Posting the request on-chain…");
+      return chain.postRfq({ pair: "XLMUSDC", side: "SELL", mode: 1, bandMin: "3", bandMax: "5", deadline: Math.floor(Date.now() / 1000) + 15 * 60, baseAmount: lot });
+    });
+    m.rfqId = Number(post.id);
+    const r = { ...(await chain.getRfq(m.rfqId)), id: m.rfqId };
+    for (let i = 0; i < TOUR_BIDS.length; i++) await run(i + 1, (stage) => placeBid(r, TOUR_BIDS[i][1], stage));
+    const set = await run(4, (stage) => settleCore(m.rfqId, stage));
+    const s = await chain.settlementOf(m.rfqId);
+    m.result = { clearing: set.clearing, winner: s ? s.winner : S.address };
+  } catch (e) {
+    const st = m.steps[e.step ?? m.steps.findIndex((x) => x.status === "run")];
+    if (st) { st.status = "fail"; st.error = e.message || "failed"; }
+  }
+  m.running = false; live();
+  refresh(); refreshBalance();
+}
+
 // ============================ ACTIONS ============================
 function bind() {
   document.querySelectorAll("[data-nav]").forEach((b) => b.onclick = () => { S.view = b.dataset.nav; S.modal = null; render(); });
@@ -470,7 +568,10 @@ function bind() {
 
 async function act(a) {
   const [cmd, arg] = a.split(":");
-  if (cmd === "closemodal") { S.modal = null; return render(); }
+  if (cmd === "closemodal") { if (S.modal && S.modal.type === "tour" && S.modal.running) return; S.modal = null; return render(); }
+  if (cmd === "tour") return runTour();
+  if (cmd === "welcomeoff") { S.welcome = false; try { localStorage.setItem("segel.welcome", "off"); } catch {} return render(); }
+  if (cmd === "navcreate") { S.view = "create"; S.modal = null; return render(); }
   if (cmd === "connect") { S.modal = { type: "connect" }; return render(); }
   if (cmd === "disconnect") { wallet.disconnect(); S.connected = false; S.address = null; toast("Disconnected", "○"); return; }
   if (cmd === "conn") return doConnect(arg);
@@ -616,52 +717,69 @@ async function doVerifyDisclosure() {
   render();
 }
 
+// Prove + submit one sealed bid (shared by the bid modal and the guided trade).
+// Returns chain.commitBid's { ok, hash | error }; on success the opening is kept locally.
+async function placeBid(r, bid, onStage) {
+  const bidStroops = chain.toStroops(bid); // circuit + commitment work in token stroops
+  onStage("Preparing witness…");
+  const bidderField = chain.addrField(S.address);
+  const availBal = r.bandMax; // proof-of-funds pinned to escrow (= band max, stroops); the escrow transfer proves the funds
+  const aspIndex = openingsFor(r.id).length % 16; // a fresh ASP identity per bid from this browser
+  const nonce = rnd();
+  onStage("Generating bidValidity proof…");
+  const { proof, commit, nullifier } = await prover.proveBid({
+    bid: bidStroops, nonce, bidderField, rfqId: r.id, bandMin: r.bandMin, bandMax: r.bandMax, availBal, aspIndex,
+  });
+  onStage("Submitting commit_bid on-chain…");
+  const res = await chain.commitBid({ rfqId: r.id, commit, nullifier, proof });
+  if (res.ok) {
+    saveOpening(r.id, { bid: String(bidStroops), nonce, bidderField, bidderAddr: S.address, commit, aspIndex });
+    logEvent("BID", "Sealed bid", `RFQ-${String(r.id).padStart(3, "0")} · amount hidden`, res.hash);
+  }
+  return res;
+}
+
 async function sealBid() {
   const m = S.modal, r = m.rfq;
   const bid = m.amount; // human USDC
   if (isNaN(+bid) || +bid < chain.toUsdc(r.bandMin) || +bid > chain.toUsdc(r.bandMax)) return;
-  const bidStroops = chain.toStroops(bid); // circuit + commitment work in token stroops
   try {
-    m.proving = true; m.stage = "Preparing witness…"; render();
-    const bidderField = chain.addrField(S.address);
-    const availBal = r.bandMax; // proof-of-funds pinned to escrow (= band max, stroops); the escrow transfer proves the funds
-    const existing = openingsFor(r.id).length;
-    const aspIndex = existing % 16; // a fresh ASP identity per bid from this browser
-    const nonce = rnd();
-    m.stage = "Generating bidValidity proof…"; render();
-    const { proof, commit, nullifier } = await prover.proveBid({
-      bid: bidStroops, nonce, bidderField, rfqId: r.id, bandMin: r.bandMin, bandMax: r.bandMax, availBal, aspIndex,
-    });
-    m.stage = "Submitting commit_bid on-chain…"; render();
-    const res = await chain.commitBid({ rfqId: r.id, commit, nullifier, proof });
+    m.proving = true;
+    const res = await placeBid(r, bid, (st) => { m.stage = st; render(); });
     if (!res.ok) { m.proving = false; render(); return toast(res.error, "✕", "#3a1414", "#ffd2d2"); }
-    saveOpening(r.id, { bid: String(bidStroops), nonce, bidderField, bidderAddr: S.address, commit, aspIndex });
-    logEvent("BID", "Sealed bid", `RFQ-${String(r.id).padStart(3, "0")} · amount hidden`, res.hash);
     S.modal = null;
     toast("Bid sealed & verified on-chain ✓", "✓");
     await refresh(); await refreshBalance();
   } catch (e) { m.proving = false; render(); toast(e.message || "proving failed", "✕", "#3a1414", "#ffd2d2"); }
 }
 
-async function doSettle(id) {
-  const r = S.rfqs.find((x) => x.id === id);
-  if (!r) return;
+// Prove the Vickrey outcome over every recorded bid and submit settle (shared by the
+// Settle button and the guided trade). Returns { ok, hash, clearing } or { ok:false, error }.
+async function settleCore(id, onStage) {
   const recorded = await chain.bidsOf(id); // commit decimals in on-chain order
-  if (!recorded.length) return toast("No bids to settle", "!", "#3a2a14", "#ffe0b0");
+  if (!recorded.length) return { ok: false, error: "No bids to settle" };
   const local = openingsFor(id);
   const ordered = recorded.map((c) => local.find((o) => o.commit === c));
-  if (ordered.some((o) => !o)) return toast("Missing bid openings — settle from the browser that sealed the bids", "!", "#3a2a14", "#ffe0b0");
+  if (ordered.some((o) => !o)) return { ok: false, error: "Missing bid openings — settle from the browser that sealed the bids" };
+  onStage("Generating auctionResult proof…");
+  const out = await prover.proveAuction({ rfqId: id, bids: ordered.map((o) => ({ bid: o.bid, nonce: o.nonce, bidderField: o.bidderField })) });
+  onStage("Submitting settle on-chain…");
+  const clearing = out.clearingPrice; // prover returns stroops as a decimal string
+  const res = await chain.settle({ rfqId: id, proof: out.proof, winner: ordered[out.winnerIdx].bidderAddr, clearing });
+  if (!res.ok) return res;
+  logEvent("SETTLE", "Settled (Vickrey)", `RFQ-${String(id).padStart(3, "0")} · clearing ${usd(clearing)} USDC · losers hidden`, res.hash);
+  return { ...res, clearing };
+}
+
+async function doSettle(id) {
+  if (!S.rfqs.find((x) => x.id === id)) return;
   try {
     S.modal = { type: "proving", stage: "Generating auctionResult proof…" }; render();
-    const out = await prover.proveAuction({ rfqId: id, bids: ordered.map((o) => ({ bid: o.bid, nonce: o.nonce, bidderField: o.bidderField })) });
-    const winnerAddr = ordered[out.winnerIdx].bidderAddr;
-    S.modal.stage = "Submitting settle on-chain…"; render();
-    const res = await chain.settle({ rfqId: id, proof: out.proof, winner: winnerAddr, clearing: out.clearing });
+    const res = await settleCore(id, (st) => { S.modal.stage = st; render(); });
     S.modal = null;
     if (!res.ok) return toast(res.error, "✕", "#3a1414", "#ffd2d2");
-    logEvent("SETTLE", "Settled (Vickrey)", `RFQ-${String(id).padStart(3, "0")} · clearing ${usd(out.clearing)} USDC · losers hidden`, res.hash);
-    toast(`Settled — clearing price ${usd(out.clearing)} USDC ✓`, "✓");
-    await refresh(); await refreshBalance();
+    toast(`Settled — clearing price ${usd(res.clearing)} USDC ✓`, "✓");
+    await refresh(); await refreshBalance(); openView(id);
   } catch (e) { S.modal = null; render(); toast(e.message || "settle failed", "✕", "#3a1414", "#ffd2d2"); }
 }
 
